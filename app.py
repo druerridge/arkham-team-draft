@@ -277,7 +277,7 @@ def convert_to_draftmancer_format(arkham_cards, selected_pack_names):
             "colors": FACTION_COLOR_MAP.get(card.get('faction_code', 'neutral'), []),
             "mana_cost": mana_cost_str,
             "type": TYPE_CODE_MAP.get(card.get('type_code'), 'Instant'),
-            "set": f"AH-{card.get('pack_code', '').upper()}",
+            "set": f"AH{card.get('pack_code', '').upper()}",
             "rating": 0
         }
         
@@ -339,8 +339,9 @@ def convert_to_draftmancer_format(arkham_cards, selected_pack_names):
     }
 
 def generate_main_slot_cards(selected_pack_codes, pack_quantities=None):
-    """Generate the MainSlot section with actual card quantities from pack data."""
-    card_quantities = {}
+    """Generate the MainSlot section with actual card quantities from pack data, separated by set."""
+    # Dictionary to track card quantities by (card_name, pack_code) pairs
+    card_set_quantities = {}
     
     # Get the main cards cache to verify which cards are player cards
     main_cards = get_arkham_cards()
@@ -382,17 +383,23 @@ def generate_main_slot_cards(selected_pack_codes, pack_quantities=None):
             final_quantity = base_quantity * pack_multiplier
             
             if card_name and final_quantity > 0:
-                if card_name in card_quantities:
-                    card_quantities[card_name] += final_quantity
+                # Create a key combining card name and pack code
+                card_set_key = (card_name, pack_code)
+                
+                if card_set_key in card_set_quantities:
+                    card_set_quantities[card_set_key] += final_quantity
                 else:
-                    card_quantities[card_name] = final_quantity
+                    card_set_quantities[card_set_key] = final_quantity
     
-    # Generate main slot lines with actual quantities
-    main_slot_lines = []
-    for card_name, total_quantity in sorted(card_quantities.items()):
-        main_slot_lines.append(f"{total_quantity} {card_name}")
+    # Generate main slot lines with actual quantities, separated by set
+    card_entries = []
+    for (card_name, pack_code), total_quantity in card_set_quantities.items():
+        card_entries.append(f"{total_quantity} {card_name} (AH{pack_code.upper()})")
     
-    return main_slot_lines
+    # Sort the entries by card name (ignoring quantity and set)
+    card_entries.sort(key=lambda x: x.split(' ', 1)[1].split(' (AH')[0])
+    
+    return card_entries
 
 def generate_draftmancer_file_content(cards, main_slot_cards, selected_pack_names):
     """Generate the complete Draftmancer file content in .txt format."""

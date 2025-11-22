@@ -1,6 +1,7 @@
 # Cache files
 arkham_packs_cache.json
 arkham_cards_cache.json
+pack_cards_cache/
 
 # Generated draft files
 arkham_draft_*.json

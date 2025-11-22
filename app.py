@@ -9,6 +9,7 @@ app = Flask(__name__)
 # Cache configuration
 PACKS_CACHE_FILE = 'arkham_packs_cache.json'
 CARDS_CACHE_FILE = 'arkham_cards_cache.json'
+PACK_CARDS_CACHE_DIR = 'pack_cards_cache'
 CACHE_DURATION_HOURS = 24  # Cache for 24 hours
 PACKS_API_URL = 'https://arkhamdb.com/api/public/packs/'
 CARDS_API_URL = 'https://arkhamdb.com/api/public/cards/'
@@ -114,6 +115,72 @@ def load_cached_cards():
     except (FileNotFoundError, json.JSONDecodeError) as e:
         print(f"Error loading cards cache: {e}")
         return None
+
+def get_pack_cards_cache_path(pack_code):
+    """Get the cache file path for a specific pack."""
+    if not os.path.exists(PACK_CARDS_CACHE_DIR):
+        os.makedirs(PACK_CARDS_CACHE_DIR)
+    return os.path.join(PACK_CARDS_CACHE_DIR, f'{pack_code}_cards.json')
+
+def fetch_and_cache_pack_cards(pack_code):
+    """Fetch cards from a specific pack and cache them."""
+    try:
+        pack_cards_url = f'{CARDS_API_URL}{pack_code}'
+        print(f"Fetching cards from pack {pack_code}: {pack_cards_url}")
+        response = requests.get(pack_cards_url, timeout=30)
+        response.raise_for_status()
+        
+        pack_cards_data = response.json()
+        
+        # Cache the data
+        cache_path = get_pack_cards_cache_path(pack_code)
+        with open(cache_path, 'w', encoding='utf-8') as f:
+            json.dump(pack_cards_data, f, indent=2, ensure_ascii=False)
+        
+        print(f"Successfully cached {len(pack_cards_data)} cards from pack {pack_code}")
+        return pack_cards_data
+    
+    except requests.RequestException as e:
+        print(f"Error fetching pack {pack_code} cards from API: {e}")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON response for pack {pack_code}: {e}")
+        return None
+
+def load_cached_pack_cards(pack_code):
+    """Load cached cards for a specific pack."""
+    cache_path = get_pack_cards_cache_path(pack_code)
+    try:
+        with open(cache_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Error loading pack {pack_code} cache: {e}")
+        return None
+
+def get_pack_cards(pack_code):
+    """Get cards for a specific pack, either from cache or API."""
+    cache_path = get_pack_cards_cache_path(pack_code)
+    
+    # Check if we have a valid cache for this pack
+    if is_cache_valid(cache_path):
+        print(f"Using cached data for pack {pack_code}")
+        pack_cards_data = load_cached_pack_cards(pack_code)
+        if pack_cards_data:
+            return pack_cards_data
+    
+    # Cache is invalid or doesn't exist, fetch from API
+    pack_cards_data = fetch_and_cache_pack_cards(pack_code)
+    if pack_cards_data:
+        return pack_cards_data
+    
+    # If API fails, try to use stale cache
+    print(f"API failed for pack {pack_code}, attempting to use stale cache")
+    pack_cards_data = load_cached_pack_cards(pack_code)
+    if pack_cards_data:
+        return pack_cards_data
+    
+    print(f"Unable to load cards data for pack {pack_code}")
+    return []
 
 def get_arkham_cards():
     """Get Arkham Horror cards, either from cache or API."""
@@ -266,26 +333,45 @@ def convert_to_draftmancer_format(arkham_cards, selected_pack_names):
         "cards": draftmancer_cards,
         "count": len(draftmancer_cards),
         "selected_packs": selected_pack_names,
+        "selected_pack_codes": selected_pack_codes,
         "filtered_cards": filtered_cards  # Include filtered cards for MainSlot generation
     }
 
-def generate_main_slot_cards(filtered_cards):
-    """Generate the MainSlot section with non-investigator cards (2 copies each)."""
-    main_slot_lines = []
+def generate_main_slot_cards(selected_pack_codes):
+    """Generate the MainSlot section with actual card quantities from pack data."""
+    card_quantities = {}
     
-    for card in filtered_cards:
-        # Skip investigators and cards with restrictions field
-        if card.get('type_code') == 'investigator':
-            continue
-        if 'restrictions' in card and card['restrictions']:
-            continue
-        # Skip basic weakness cards
-        if card.get('subtype_code') == 'basicweakness':
-            continue
+    # Fetch pack-specific card data for each selected pack
+    for pack_code in selected_pack_codes:
+        pack_cards = get_pack_cards(pack_code)
+        
+        for card in pack_cards:
+            # Skip investigators and cards with restrictions field
+            if card.get('type_code') == 'investigator':
+                continue
+            if 'restrictions' in card and card['restrictions']:
+                continue
+            # Skip basic weakness cards
+            if card.get('subtype_code') == 'basicweakness':
+                continue
+            # Skip cards with XP > 0
+            xp = card.get('xp', 0)
+            if xp is not None and xp > 0:
+                continue
             
-        card_name = card.get('name', '')
-        if card_name:
-            main_slot_lines.append(f"2 {card_name}")
+            card_name = card.get('name', '')
+            quantity = card.get('quantity', 0)
+            
+            if card_name and quantity > 0:
+                if card_name in card_quantities:
+                    card_quantities[card_name] += quantity
+                else:
+                    card_quantities[card_name] = quantity
+    
+    # Generate main slot lines with actual quantities
+    main_slot_lines = []
+    for card_name, total_quantity in sorted(card_quantities.items()):
+        main_slot_lines.append(f"{total_quantity} {card_name}")
     
     return main_slot_lines
 
@@ -375,8 +461,8 @@ def draft():
         return render_template('draft_result.html', selected_sets=selected_sets, 
                              error=draftmancer_data["error"])
     
-    # Generate MainSlot cards
-    main_slot_cards = generate_main_slot_cards(draftmancer_data["filtered_cards"])
+    # Generate MainSlot cards with actual quantities
+    main_slot_cards = generate_main_slot_cards(draftmancer_data["selected_pack_codes"])
     
     # Generate complete Draftmancer file content
     file_content = generate_draftmancer_file_content(

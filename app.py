@@ -278,6 +278,7 @@ def convert_to_draftmancer_format(arkham_cards, selected_pack_names):
             "mana_cost": mana_cost_str,
             "type": TYPE_CODE_MAP.get(card.get('type_code'), 'Instant'),
             "set": f"AH{card.get('pack_code', '').upper()}",
+            "collector_number": str(card.get('position', '')),
             "rating": 0
         }
         
@@ -340,7 +341,7 @@ def convert_to_draftmancer_format(arkham_cards, selected_pack_names):
 
 def generate_main_slot_cards(selected_pack_codes, pack_quantities=None):
     """Generate the MainSlot section with actual card quantities from pack data, separated by set."""
-    # Dictionary to track card quantities by (card_name, pack_code) pairs
+    # Dictionary to track card quantities by (card_name, pack_code, collector_number) tuples
     card_set_quantities = {}
     
     # Get the main cards cache to verify which cards are player cards
@@ -379,12 +380,13 @@ def generate_main_slot_cards(selected_pack_codes, pack_quantities=None):
                 continue
             
             card_name = card.get('name', '')
+            collector_number = str(card.get('position', ''))
             base_quantity = card.get('quantity', 0)
             final_quantity = base_quantity * pack_multiplier
             
             if card_name and final_quantity > 0:
-                # Create a key combining card name and pack code
-                card_set_key = (card_name, pack_code)
+                # Create a key combining card name, pack code, and collector number
+                card_set_key = (card_name, pack_code, collector_number)
                 
                 if card_set_key in card_set_quantities:
                     card_set_quantities[card_set_key] += final_quantity
@@ -393,8 +395,8 @@ def generate_main_slot_cards(selected_pack_codes, pack_quantities=None):
     
     # Generate main slot lines with actual quantities, separated by set
     card_entries = []
-    for (card_name, pack_code), total_quantity in card_set_quantities.items():
-        card_entries.append(f"{total_quantity} {card_name} (AH{pack_code.upper()})")
+    for (card_name, pack_code, collector_number), total_quantity in card_set_quantities.items():
+        card_entries.append(f"{total_quantity} {card_name} (AH{pack_code.upper()}) {collector_number}")
     
     # Sort the entries by card name (ignoring quantity and set)
     card_entries.sort(key=lambda x: x.split(' ', 1)[1].split(' (AH')[0])

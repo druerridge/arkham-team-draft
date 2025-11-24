@@ -339,8 +339,8 @@ def convert_to_draftmancer_format(arkham_cards, selected_pack_names):
         "filtered_cards": filtered_cards  # Include filtered cards for MainSlot generation
     }
 
-def generate_main_slot_cards(selected_pack_codes, pack_quantities=None):
-    """Generate the MainSlot section with actual card quantities from pack data, separated by set."""
+def generate_player_cards(selected_pack_codes, pack_quantities=None):
+    """Generate the PlayerCards section with actual card quantities from pack data, separated by set."""
     # Dictionary to track card quantities by (card_name, pack_code, collector_number) tuples
     card_set_quantities = {}
     
@@ -393,7 +393,7 @@ def generate_main_slot_cards(selected_pack_codes, pack_quantities=None):
                 else:
                     card_set_quantities[card_set_key] = final_quantity
     
-    # Generate main slot lines with actual quantities, separated by set
+    # Generate player cards lines with actual quantities, separated by set
     card_entries = []
     for (card_name, pack_code, collector_number), total_quantity in card_set_quantities.items():
         card_entries.append(f"{total_quantity} {card_name} (AH{pack_code.upper()}) {collector_number}")
@@ -403,7 +403,151 @@ def generate_main_slot_cards(selected_pack_codes, pack_quantities=None):
     
     return card_entries
 
-def generate_draftmancer_file_content(cards, main_slot_cards, selected_pack_names):
+def generate_investigators_cards(selected_pack_codes, pack_quantities=None):
+    """Generate the Investigators section with unique cards by name, prioritizing revised core then most recent."""
+    # Dictionary to track best card by name: card_name -> (card_data, pack_data)
+    best_cards_by_name = {}
+    
+    # Get the main cards cache to verify which cards are player cards
+    main_cards = get_arkham_cards()
+    player_card_codes = set(card.get('code') for card in main_cards if card.get('code'))
+    
+    # Get pack data for priority logic
+    packs_data = load_cached_packs()
+    pack_code_to_pack = {pack['code']: pack for pack in packs_data} if packs_data else {}
+    pack_code_to_name = {pack['code']: pack['name'] for pack in packs_data} if packs_data else {}
+    
+    # Fetch pack-specific card data for each selected pack
+    for pack_code in selected_pack_codes:
+        pack_cards = get_pack_cards(pack_code)
+        pack_data = pack_code_to_pack.get(pack_code, {})
+        
+        for card in pack_cards:
+            # Only include cards that exist in the main cards cache (player cards)
+            card_code = card.get('code', '')
+            if card_code not in player_card_codes:
+                continue
+                
+            # Only include investigators
+            if card.get('type_code') != 'investigator':
+                continue
+            
+            card_name = card.get('name', '')
+            if not card_name:
+                continue
+            
+            # Check if this is a better version than what we have
+            if card_name not in best_cards_by_name:
+                best_cards_by_name[card_name] = (card, pack_data)
+            else:
+                current_card, current_pack = best_cards_by_name[card_name]
+                
+                # Priority logic:
+                # 1. Revised core set (pack_code == 'rcore') wins
+                # 2. Otherwise, highest cycle_position wins
+                # 3. If cycle_position is tied, highest position wins
+                
+                if pack_code == 'rcore' and current_pack.get('code') != 'rcore':
+                    # New card is from revised core, current is not
+                    best_cards_by_name[card_name] = (card, pack_data)
+                elif current_pack.get('code') == 'rcore' and pack_code != 'rcore':
+                    # Current card is from revised core, new is not - keep current
+                    pass
+                else:
+                    # Neither or both are revised core, compare by cycle_position and position
+                    current_cycle = current_pack.get('cycle_position', 0)
+                    current_pos = current_pack.get('position', 0)
+                    new_cycle = pack_data.get('cycle_position', 0)
+                    new_pos = pack_data.get('position', 0)
+                    
+                    if (new_cycle > current_cycle) or (new_cycle == current_cycle and new_pos > current_pos):
+                        best_cards_by_name[card_name] = (card, pack_data)
+    
+    # Generate investigators lines (no quantities, just unique cards)
+    card_entries = []
+    for card_name, (card, pack_data) in best_cards_by_name.items():
+        collector_number = str(card.get('position', ''))
+        pack_code = card.get('pack_code', '')
+        card_entries.append(f"1 {card_name} (AH{pack_code.upper()}) {collector_number}")
+    
+    # Sort the entries by card name
+    card_entries.sort(key=lambda x: x.split(' ', 1)[1].split(' (AH')[0])
+    
+    return card_entries
+
+def generate_basic_weaknesses_cards(selected_pack_codes, pack_quantities=None):
+    """Generate the BasicWeaknesses section with unique cards by name, prioritizing revised core then most recent."""
+    # Dictionary to track best card by name: card_name -> (card_data, pack_data)
+    best_cards_by_name = {}
+    
+    # Get the main cards cache to verify which cards are player cards
+    main_cards = get_arkham_cards()
+    player_card_codes = set(card.get('code') for card in main_cards if card.get('code'))
+    
+    # Get pack data for priority logic
+    packs_data = load_cached_packs()
+    pack_code_to_pack = {pack['code']: pack for pack in packs_data} if packs_data else {}
+    pack_code_to_name = {pack['code']: pack['name'] for pack in packs_data} if packs_data else {}
+    
+    # Fetch pack-specific card data for each selected pack
+    for pack_code in selected_pack_codes:
+        pack_cards = get_pack_cards(pack_code)
+        pack_data = pack_code_to_pack.get(pack_code, {})
+        
+        for card in pack_cards:
+            # Only include cards that exist in the main cards cache (player cards)
+            card_code = card.get('code', '')
+            if card_code not in player_card_codes:
+                continue
+                
+            # Only include basic weakness cards
+            if card.get('subtype_code') != 'basicweakness':
+                continue
+            
+            card_name = card.get('name', '')
+            if not card_name:
+                continue
+            
+            # Check if this is a better version than what we have
+            if card_name not in best_cards_by_name:
+                best_cards_by_name[card_name] = (card, pack_data)
+            else:
+                current_card, current_pack = best_cards_by_name[card_name]
+                
+                # Priority logic:
+                # 1. Revised core set (pack_code == 'rcore') wins
+                # 2. Otherwise, highest cycle_position wins
+                # 3. If cycle_position is tied, highest position wins
+                
+                if pack_code == 'rcore' and current_pack.get('code') != 'rcore':
+                    # New card is from revised core, current is not
+                    best_cards_by_name[card_name] = (card, pack_data)
+                elif current_pack.get('code') == 'rcore' and pack_code != 'rcore':
+                    # Current card is from revised core, new is not - keep current
+                    pass
+                else:
+                    # Neither or both are revised core, compare by cycle_position and position
+                    current_cycle = current_pack.get('cycle_position', 0)
+                    current_pos = current_pack.get('position', 0)
+                    new_cycle = pack_data.get('cycle_position', 0)
+                    new_pos = pack_data.get('position', 0)
+                    
+                    if (new_cycle > current_cycle) or (new_cycle == current_cycle and new_pos > current_pos):
+                        best_cards_by_name[card_name] = (card, pack_data)
+    
+    # Generate basic weaknesses lines (no quantities, just unique cards)
+    card_entries = []
+    for card_name, (card, pack_data) in best_cards_by_name.items():
+        collector_number = str(card.get('position', ''))
+        pack_code = card.get('pack_code', '')
+        card_entries.append(f"1 {card_name} (AH{pack_code.upper()}) {collector_number}")
+    
+    # Sort the entries by card name
+    card_entries.sort(key=lambda x: x.split(' ', 1)[1].split(' (AH')[0])
+    
+    return card_entries
+
+def generate_draftmancer_file_content(cards, investigators_cards, basic_weaknesses_cards, player_cards, selected_pack_names):
     """Generate the complete Draftmancer file content in .txt format."""
     lines = []
     
@@ -415,16 +559,44 @@ def generate_draftmancer_file_content(cards, main_slot_cards, selected_pack_name
     # Settings section  
     lines.append("[Settings]")
     settings = {
-        "boostersPerPlayer": 3,
         "name": "AH LCG - Draft",
         "cardBack": "https://images.steamusercontent.com/ugc/786371626459887968/96D099C4BBCD944EF3935E613FDF5706E46CA25A/?imw=5000&imh=5000&ima=fit&impolicy=Letterbox&imcolor=%23000000&letterbox=false",
+        "layouts": {
+            "Investigators": {
+                "weight": 1,
+                "slots": {
+                    "Investigators": 3
+                }
+            },
+            "BasicWeaknesses": {
+                "weight": 1,
+                "slots": {
+                    "BasicWeaknesses": 3
+                }
+            },
+            "PlayerCards": {
+                "weight": 1,
+                "slots": {
+                    "PlayerCards": 15
+                }
+            }
+        },
+        "predeterminedLayouts": ["Investigators", "BasicWeaknesses", "PlayerCards", "PlayerCards", "PlayerCards"],
         "withReplacement": False
     }
     lines.append(json.dumps(settings, indent=4))
     
-    # MainSlot section
-    lines.append("[MainSlot(15)]")
-    lines.extend(main_slot_cards)
+    # Investigators section
+    lines.append("[Investigators]")
+    lines.extend(investigators_cards)
+    
+    # BasicWeaknesses section
+    lines.append("[BasicWeaknesses]")
+    lines.extend(basic_weaknesses_cards)
+    
+    # PlayerCards section
+    lines.append("[PlayerCards]")
+    lines.extend(player_cards)
     
     return "\n".join(lines)
 
@@ -545,13 +717,17 @@ def draft():
         return render_template('draft_result.html', selected_sets=selected_sets, 
                              error=draftmancer_data["error"])
     
-    # Generate MainSlot cards with actual quantities and pack multipliers
-    main_slot_cards = generate_main_slot_cards(draftmancer_data["selected_pack_codes"], pack_quantities)
+    # Generate cards for all three sheets with actual quantities and pack multipliers
+    investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities)
+    basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities)
+    player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities)
     
     # Generate complete Draftmancer file content
     file_content = generate_draftmancer_file_content(
         draftmancer_data["cards"],
-        main_slot_cards,
+        investigators_cards,
+        basic_weaknesses_cards,
+        player_cards,
         selected_sets
     )
     
@@ -567,13 +743,17 @@ def draft():
             f.write(file_content)
         
         investigator_count = draftmancer_data['count']
-        main_slot_count = len(main_slot_cards)
-        print(f"Generated Draftmancer file: {filename} with {investigator_count} investigators and {main_slot_count} main slot cards")
+        investigators_count = len(investigators_cards)
+        basic_weaknesses_count = len(basic_weaknesses_cards)
+        player_cards_count = len(player_cards)
+        print(f"Generated Draftmancer file: {filename} with {investigator_count} custom cards, {investigators_count} investigators, {basic_weaknesses_count} basic weaknesses, and {player_cards_count} player cards")
         
         return render_template('draft_result.html', 
                              selected_sets=selected_sets,
                              card_count=investigator_count,
-                             main_slot_count=main_slot_count,
+                             investigators_count=investigators_count,
+                             basic_weaknesses_count=basic_weaknesses_count,
+                             player_cards_count=player_cards_count,
                              filename=filename,
                              filepath=filepath)
     

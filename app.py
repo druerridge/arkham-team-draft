@@ -270,7 +270,7 @@ def convert_to_draftmancer_format(arkham_cards, selected_pack_names):
             mana_cost_str = str(cost)
         else:
             mana_cost_str = "0"
-        
+                
         draftmancer_card = {
             "name": card.get('name', ''),
             "image": format_image_url(card.get('imagesrc', '')),
@@ -281,7 +281,10 @@ def convert_to_draftmancer_format(arkham_cards, selected_pack_names):
             "collector_number": str(card.get('position', '')),
             "rating": 0
         }
-        
+
+        if card.get('type_code') == 'investigator':
+            draftmancer_card["draft_effects"] = ["FaceUp"]
+
         # Add layout field and related_cards for investigator cards
         if card.get('type_code') == 'investigator':
             draftmancer_card["layout"] = "split_left"

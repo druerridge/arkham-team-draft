@@ -113,7 +113,7 @@
         .draft-button {
             display: block;
             width: 200px;
-            margin: 0 auto;
+            margin: 0 auto 15px auto;
             padding: 15px 30px;
             background-color: #8b0000;
             color: white;
@@ -126,6 +126,27 @@
         }
         .draft-button:hover {
             background-color: #a00000;
+        }
+        .draft-now-button {
+            display: block;
+            width: 200px;
+            margin: 0 auto;
+            padding: 15px 30px;
+            background-color: #006400;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .draft-now-button:hover {
+            background-color: #008000;
+        }
+        .draft-now-button:disabled {
+            background-color: #444;
+            cursor: not-allowed;
         }
         .select-all {
             text-align: center;
@@ -240,6 +261,7 @@
         {% endif %}
         
         <button type="submit" class="draft-button">DRAFT</button>
+        <button type="button" class="draft-now-button" id="draftNowBtn" onclick="draftNow()">DRAFT NOW</button>
     </form>
 
     <div class="footer">
@@ -327,6 +349,74 @@
                 toggleQuantityInput(checkbox.value);
             });
         });
+        
+        // Draft Now functionality
+        async function draftNow() {
+            const draftNowBtn = document.getElementById('draftNowBtn');
+            const form = document.querySelector('form');
+            const formData = new FormData(form);
+            
+            // Check if any sets are selected
+            const selectedSets = formData.getAll('sets');
+            if (selectedSets.length === 0) {
+                alert('Please select at least one pack to draft.');
+                return;
+            }
+            
+            // Check if Socket.IO is loaded
+            if (typeof io === 'undefined') {
+                alert('Socket.IO not loaded. Please refresh the page and try again.');
+                return;
+            }
+            
+            draftNowBtn.disabled = true;
+            draftNowBtn.textContent = 'PREPARING...';
+            
+            try {
+                const response = await fetch('/draft-now', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to generate draft');
+                }
+                
+                draftNowBtn.textContent = 'CONNECTING...';
+                
+                // Only open tab after we have the data ready
+                const draftTab = window.open('about:blank', '_blank');
+                if (!draftTab) {
+                    throw new Error('Please allow popups for this site to use Draft Now feature');
+                }
+                
+                // Focus the new tab immediately
+                draftTab.focus();
+                
+                // Dynamically import and use the draftmancer connection module
+                const { generateDraftmancerSession } = await import('/static/draftmancer-connect.js');
+                generateDraftmancerSession(data.cubeFile, draftTab, data.metadata);
+                
+                // Show success message without blocking
+                console.log(`Starting draft with ${data.metadata.investigatorsCount} investigators, ${data.metadata.basicWeaknessesCount} basic weaknesses, and ${data.metadata.playerCardsCount} player cards!`);
+                
+            } catch (error) {
+                console.error('Draft Now error:', error);
+                alert('Error starting draft: ' + error.message);
+                // Close the tab if it was opened
+                if (typeof draftTab !== 'undefined' && draftTab && !draftTab.closed) {
+                    draftTab.close();
+                }
+            } finally {
+                draftNowBtn.disabled = false;
+                draftNowBtn.textContent = 'DRAFT NOW';
+            }
+        }
     </script>
+    
+    <!-- Socket.IO for Draftmancer connection -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </body>
 </html>

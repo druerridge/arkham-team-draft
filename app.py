@@ -774,6 +774,66 @@ def draft():
         return render_template('draft_result.html', selected_sets=selected_sets, 
                              error=f"Error saving draft file: {str(e)}")
 
+@app.route('/draft-now', methods=['POST'])
+def draft_now():
+    from flask import jsonify
+    
+    selected_sets = request.form.getlist('sets')
+    
+    if not selected_sets:
+        return jsonify({"error": "No sets selected"}), 400
+    
+    # Process pack quantities - get quantities for each selected pack
+    pack_quantities = {}
+    for pack_name in selected_sets:
+        quantity_key = f'quantity_{pack_name}'
+        quantity = int(request.form.get(quantity_key, 1))  # Default to 1 if not specified
+        pack_quantities[pack_name] = quantity
+    
+    # Get all cards and convert to Draftmancer format
+    print(f"Generating Draftmancer format for immediate draft with {len(selected_sets)} selected sets and quantities: {pack_quantities}")
+    arkham_cards = get_arkham_cards()
+    
+    if not arkham_cards:
+        return jsonify({"error": "Unable to load card data"}), 500
+    
+    draftmancer_data = convert_to_draftmancer_format(arkham_cards, selected_sets)
+    
+    if "error" in draftmancer_data:
+        return jsonify({"error": draftmancer_data["error"]}), 500
+    
+    # Generate cards for all three sheets with actual quantities and pack multipliers
+    investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities)
+    basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities)
+    player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities)
+    
+    # Generate complete Draftmancer file content
+    file_content = generate_draftmancer_file_content(
+        draftmancer_data["cards"],
+        investigators_cards,
+        basic_weaknesses_cards,
+        player_cards,
+        selected_sets
+    )
+    
+    # Return JSON data for immediate drafting
+    investigators_count = len(investigators_cards)
+    basic_weaknesses_count = len(basic_weaknesses_cards)
+    player_cards_count = len(player_cards)
+    
+    print(f"Generated Draftmancer content for immediate draft with {draftmancer_data['count']} custom cards, {investigators_count} investigators, {basic_weaknesses_count} basic weaknesses, and {player_cards_count} player cards")
+    
+    return jsonify({
+        "cubeFile": file_content,
+        "metadata": {
+            "cardCount": draftmancer_data['count'],
+            "investigatorsCount": investigators_count,
+            "basicWeaknessesCount": basic_weaknesses_count,
+            "playerCardsCount": player_cards_count,
+            "selectedSets": selected_sets
+        }
+    })
+
 @app.route('/refresh-cache')
 def refresh_cache():
     """Manually refresh the packs cache."""

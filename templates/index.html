@@ -6,12 +6,47 @@
     <title>Arkham Horror Team Draft</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: Georgia, serif;
             max-width: 1400px;
             margin: 0 auto;
-            padding: 20px;
+            padding: 0;
             background-color: #1a1a1a;
-            color: #e0e0e0;
+            color: #e8d5b7;
+        }
+        
+        .header {
+            background-color: #2c1810;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #8b4513;
+        }
+        
+        .nav {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+        
+        .nav a {
+            color: #e8d5b7;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 16px;
+            transition: color 0.3s ease;
+        }
+        
+        .nav a:hover {
+            color: #daa520;
+        }
+        
+        .nav a.current {
+            color: #daa520;
+            border-bottom: 2px solid #daa520;
+            padding-bottom: 2px;
+        }
+        
+        .main-content {
+            padding: 0 20px 20px;
         }
         h1 {
             color: #d4af37;
@@ -219,7 +254,14 @@
     </style>
 </head>
 <body>
-    <h1>Arkham Horror: The Card Game - Team Draft</h1>
+    <div class="header">
+        <nav class="nav">
+            <a href="/" class="current">Draft Generator</a>
+            <a href="/deck-exporter">Deck Exporter</a>
+        </nav>
+    </div>
+    <div class="main-content">
+        <h1>Arkham Team Draft</h1>
     
     <form method="POST" action="/draft">
         <div class="select-all">
@@ -281,14 +323,6 @@
         <button type="button" class="draft-now-button" id="draftNowBtn" onclick="draftNow()" disabled>DRAFT NOW</button>
         <a href="#" class="download-link disabled" id="downloadLink" onclick="event.preventDefault(); if (!this.classList.contains('disabled')) { document.querySelector('form').submit(); } return false;">download draftmancer file</a>
     </form>
-
-    <div style="text-align: center; margin: 30px 0;">
-        <a href="/deck-exporter" style="color: #6699cc; text-decoration: none; padding: 10px 20px; border: 1px solid #6699cc; border-radius: 4px; display: inline-block; transition: background-color 0.3s;" 
-           onmouseover="this.style.backgroundColor='rgba(102, 153, 204, 0.1)'" 
-           onmouseout="this.style.backgroundColor='transparent'">
-            🔄 Deck Exporter - Convert Draftmancer exports to ArkhamDB format
-        </a>
-    </div>
 
     <div class="footer">
         <p>Please post bug reports and feature requests on <a href="https://github.com/druerridge/arkham-team-draft" target="_blank">GitHub</a></p>
@@ -481,5 +515,8 @@
     
     <!-- Socket.IO for Draftmancer connection -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="/static/draftmancer-connect.js"></script>
+    </div>
 </body>
+</html>
 </html>

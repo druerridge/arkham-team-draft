@@ -323,17 +323,25 @@
         
         function toggleQuantityInput(packName) {
             const checkbox = document.querySelector(`input[value="${packName}"]`);
-            const sanitizedName = packName.replace(/[\s\-:,.!]/g, '_');
+            const sanitizedName = packName.replace(/[\s\-:,.!']/g, '_').replace(/[\.]/g, '');
             const quantityControls = document.getElementById(`quantity_controls_${sanitizedName}`);
             const quantityInput = document.getElementById(`quantity_${sanitizedName}`);
             
             if (checkbox && checkbox.checked) {
-                quantityControls.classList.add('enabled');
-                quantityInput.disabled = false;
+                if (quantityControls) {
+                    quantityControls.classList.add('enabled');
+                }
+                if (quantityInput) {
+                    quantityInput.disabled = false;
+                }
             } else {
-                quantityControls.classList.remove('enabled');
-                quantityInput.disabled = true;
-                quantityInput.value = 1; // Reset to 1 when unchecked
+                if (quantityControls) {
+                    quantityControls.classList.remove('enabled');
+                }
+                if (quantityInput) {
+                    quantityInput.disabled = true;
+                    quantityInput.value = 1; // Reset to 1 when unchecked
+                }
             }
             
             updateDraftButtonStates();

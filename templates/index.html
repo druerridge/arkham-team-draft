@@ -110,22 +110,18 @@
             flex: 1;
             font-size: 1.1em;
         }
-        .draft-button {
+        .download-link {
             display: block;
-            width: 200px;
+            text-align: center;
             margin: 0 auto 15px auto;
-            padding: 15px 30px;
-            background-color: #8b0000;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background-color 0.3s;
+            color: #6699cc;
+            text-decoration: underline;
+            font-size: 14px;
+            padding: 8px;
+            transition: color 0.3s;
         }
-        .draft-button:hover {
-            background-color: #a00000;
+        .download-link:hover {
+            color: #88bbee;
         }
         .draft-now-button {
             display: block;
@@ -260,8 +256,8 @@
         </div>
         {% endif %}
         
-        <button type="submit" class="draft-button">DRAFT</button>
         <button type="button" class="draft-now-button" id="draftNowBtn" onclick="draftNow()">DRAFT NOW</button>
+        <a href="#" class="download-link" onclick="event.preventDefault(); document.querySelector('form').submit(); return false;">download draftmancer file</a>
     </form>
 
     <div class="footer">

@@ -754,8 +754,11 @@ def group_packs_by_cycle(packs_data):
     for pack in packs_data:
         cycle_pos = pack.get('cycle_position', 99)
         if cycle_pos not in cycles:
+            # Special case for cycle_position 50 (Return to...)
+            if cycle_pos == 50:
+                cycle_name = "Return to..."
             # Special case for cycle_position 60 (Starter Decks)
-            if cycle_pos == 60:
+            elif cycle_pos == 60:
                 cycle_name = "Starter Decks"
             # Special case for cycle_position 70 (Side Stories)
             elif cycle_pos == 70:
@@ -768,6 +771,9 @@ def group_packs_by_cycle(packs_data):
                 cycle_name = "Parallel"
             else:
                 cycle_name = pack['name']  # First pack in cycle becomes the cycle name
+                # Remove "Investigator Expansion" suffix from cycle names
+                if cycle_name.endswith(' Investigator Expansion'):
+                    cycle_name = cycle_name[:-len(' Investigator Expansion')]
             
             cycles[cycle_pos] = {
                 'cycle_name': cycle_name,

@@ -12,8 +12,20 @@ export function generateDraftmancerSession(CubeFile, tabToOpen, metadata, gameMo
     // Generate unique user ID and session ID
     const BotID = "ArkhamTDBot_" + crypto.randomUUID();
     const SessionID = "ArkhamTD_" + crypto.randomUUID();
-    const maxSupportedPlayers = Math.floor( (metadata.investigatorsCount + metadata.basicWeaknessesCount + metadata.playerCardsCount) / (3 + 3 + 45) )
-    const numBots = Math.min(maxSupportedPlayers - 1, 7) ;
+    
+    // Calculate max players based on sufficient cards in each category
+    const investigatorsPerPlayer = 3;
+    const weaknessesPerPlayer = 3;
+    const playerCardsPerPlayer = 45;
+    
+    const maxPlayersByInvestigators = Math.floor(metadata.investigatorsCount / investigatorsPerPlayer);
+    const maxPlayersByWeaknesses = Math.floor(metadata.basicWeaknessesCount / weaknessesPerPlayer);
+    const maxPlayersByPlayerCards = Math.floor(metadata.playerCardsCount / playerCardsPerPlayer);
+    
+    // The maximum players is limited by whichever category has the least cards
+    const maxSupportedPlayers = Math.min(maxPlayersByInvestigators, maxPlayersByWeaknesses, maxPlayersByPlayerCards);
+    
+    const numBots = Math.min(maxSupportedPlayers - 1, 7);
     const query = {
         userID: BotID,
         userName: "ArkhamTD Bot",

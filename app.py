@@ -964,9 +964,18 @@ def draft_now():
     # Return JSON data for immediate drafting
     investigators_count = len(investigators_cards)
     basic_weaknesses_count = len(basic_weaknesses_cards)
-    player_cards_count = len(player_cards)
     
-    print(f"Generated Draftmancer content for immediate draft with {draftmancer_data['count']} custom cards, {investigators_count} investigators, {basic_weaknesses_count} basic weaknesses, and {player_cards_count} player cards")
+    # Calculate total quantity of player cards (sum of all quantities, not unique cards)
+    player_cards_total_quantity = 0
+    for card_entry in player_cards:
+        # Extract quantity from entries like "3 Emergency Cache (AHCORE) 88"
+        try:
+            quantity = int(card_entry.split(' ', 1)[0])
+            player_cards_total_quantity += quantity
+        except (ValueError, IndexError):
+            continue  # Skip malformed entries
+    
+    print(f"Generated Draftmancer content for immediate draft with {draftmancer_data['count']} custom cards, {investigators_count} investigators, {basic_weaknesses_count} basic weaknesses, and {player_cards_total_quantity} total player cards ({len(player_cards)} unique)")
     
     return jsonify({
         "cubeFile": file_content,
@@ -974,7 +983,7 @@ def draft_now():
             "cardCount": draftmancer_data['count'],
             "investigatorsCount": investigators_count,
             "basicWeaknessesCount": basic_weaknesses_count,
-            "playerCardsCount": player_cards_count,
+            "playerCardsCount": player_cards_total_quantity,
             "selectedSets": selected_sets
         }
     })

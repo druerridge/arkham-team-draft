@@ -368,7 +368,8 @@
         <p style="text-align: center; color: #c09020; font-style: italic; margin-top: -10px; margin-bottom: 30px; font-size: 18px;">
             A tool to host a team-based draft of Arkham Horror: The Card Game
         </p>
-
+    
+    <form method="POST" action="/draft">
         <!-- Options Section -->
         <div class="options-section">
             <div class="options-header" onclick="toggleOptions()">
@@ -441,8 +442,7 @@
                 </div>
             </div>
         </div>
-    
-    <form method="POST" action="/draft">
+        
         <div class="select-all">
             <button type="button" onclick="selectAll()">Select All</button>
             <button type="button" onclick="selectNone()">Select None</button>

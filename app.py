@@ -42,6 +42,39 @@ def format_image_url(image_src):
         return image_src  # Already a full URL
     return ARKHAMDB_BASE_URL + image_src
 
+def parse_excluded_cards(excluded_text):
+    """Parse the excluded cards text and return a set of normalized card names."""
+    if not excluded_text:
+        return set()
+    
+    excluded_cards = set()
+    lines = excluded_text.strip().split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        
+        # Parse format like "1 Knife" or "2 Emergency Cache"
+        # Split on first space and take everything after the first word (which should be a number)
+        parts = line.split(' ', 1)
+        if len(parts) >= 2:
+            try:
+                # Try to parse the first part as a number to validate format
+                int(parts[0])
+                card_name = parts[1].strip()
+                if card_name:
+                    # Normalize card name for matching (case-insensitive)
+                    excluded_cards.add(card_name.lower())
+            except ValueError:
+                # If first part isn't a number, treat the whole line as a card name
+                excluded_cards.add(line.lower())
+        else:
+            # If there's no space, treat the whole line as a card name
+            excluded_cards.add(line.lower())
+    
+    return excluded_cards
+
 def is_cache_valid(cache_file):
     """Check if the cache file exists and is still valid."""
     if not os.path.exists(cache_file):
@@ -400,7 +433,7 @@ def convert_to_draftmancer_format(arkham_cards, selected_pack_names):
         "filtered_cards": filtered_cards  # Include filtered cards for MainSlot generation
     }
 
-def generate_player_cards(selected_pack_codes, pack_quantities=None):
+def generate_player_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None):
     """Generate the PlayerCards section with actual card quantities from pack data, separated by set."""
     # Dictionary to track card quantities by (card_name, pack_code, collector_number) tuples
     card_set_quantities = {}
@@ -444,6 +477,11 @@ def generate_player_cards(selected_pack_codes, pack_quantities=None):
                 continue
             
             card_name = card.get('name', '')
+            
+            # Skip excluded cards
+            if excluded_cards and card_name.lower() in excluded_cards:
+                continue
+            
             collector_number = str(card.get('code', ''))
             base_quantity = card.get('quantity', 0)
             final_quantity = base_quantity * pack_multiplier
@@ -467,7 +505,7 @@ def generate_player_cards(selected_pack_codes, pack_quantities=None):
     
     return card_entries
 
-def generate_investigators_cards(selected_pack_codes, pack_quantities=None):
+def generate_investigators_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None):
     """Generate the Investigators section with unique cards by name, prioritizing revised core then most recent."""
     # Dictionary to track best card by name: card_name -> (card_data, pack_data)
     best_cards_by_name = {}
@@ -501,6 +539,10 @@ def generate_investigators_cards(selected_pack_codes, pack_quantities=None):
             
             card_name = card.get('name', '')
             if not card_name:
+                continue
+            
+            # Skip excluded cards
+            if excluded_cards and card_name.lower() in excluded_cards:
                 continue
             
             # Check if this is a better version than what we have
@@ -542,7 +584,7 @@ def generate_investigators_cards(selected_pack_codes, pack_quantities=None):
     
     return card_entries
 
-def generate_basic_weaknesses_cards(selected_pack_codes, pack_quantities=None):
+def generate_basic_weaknesses_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None):
     """Generate the BasicWeaknesses section with unique cards by name, prioritizing revised core then most recent."""
     # Dictionary to track best card by name: card_name -> (card_data, pack_data)
     best_cards_by_name = {}
@@ -576,6 +618,10 @@ def generate_basic_weaknesses_cards(selected_pack_codes, pack_quantities=None):
             
             card_name = card.get('name', '')
             if not card_name:
+                continue
+            
+            # Skip excluded cards
+            if excluded_cards and card_name.lower() in excluded_cards:
                 continue
             
             # Check if this is a better version than what we have
@@ -852,7 +898,7 @@ def draft():
     
     if not selected_sets:
         return render_template('draft_result.html', selected_sets=[], error="No sets selected")
-    
+
     # Process pack quantities - get quantities for each selected pack
     pack_quantities = {}
     for pack_name in selected_sets:
@@ -860,24 +906,30 @@ def draft():
         quantity = int(request.form.get(quantity_key, 1))  # Default to 1 if not specified
         pack_quantities[pack_name] = quantity
     
+    # Parse excluded cards
+    excluded_cards_text = request.form.get('cardsToExclude', '').strip()
+    excluded_cards = parse_excluded_cards(excluded_cards_text)
+    
     # Get all cards and convert to Draftmancer format
     print(f"Generating Draftmancer format for {len(selected_sets)} selected sets with quantities: {pack_quantities}")
+    if excluded_cards:
+        print(f"Excluding {len(excluded_cards)} cards: {list(excluded_cards)}")
     arkham_cards = get_arkham_cards()
-    
+
     if not arkham_cards:
         return render_template('draft_result.html', selected_sets=selected_sets, 
                              error="Unable to load card data")
-    
+
     draftmancer_data = convert_to_draftmancer_format(arkham_cards, selected_sets)
-    
+
     if "error" in draftmancer_data:
         return render_template('draft_result.html', selected_sets=selected_sets, 
                              error=draftmancer_data["error"])
-    
+
     # Generate cards for all three sheets with actual quantities and pack multipliers
-    investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities)
-    basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities)
-    player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities)
+    investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
+    basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
+    player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
     
     # Generate complete Draftmancer file content
     file_content = generate_draftmancer_file_content(
@@ -927,7 +979,7 @@ def draft_now():
     
     if not selected_sets:
         return jsonify({"error": "No sets selected"}), 400
-    
+
     # Process pack quantities - get quantities for each selected pack
     pack_quantities = {}
     for pack_name in selected_sets:
@@ -935,22 +987,28 @@ def draft_now():
         quantity = int(request.form.get(quantity_key, 1))  # Default to 1 if not specified
         pack_quantities[pack_name] = quantity
     
+    # Parse excluded cards
+    excluded_cards_text = request.form.get('cardsToExclude', '').strip()
+    excluded_cards = parse_excluded_cards(excluded_cards_text)
+    
     # Get all cards and convert to Draftmancer format
     print(f"Generating Draftmancer format for immediate draft with {len(selected_sets)} selected sets and quantities: {pack_quantities}")
+    if excluded_cards:
+        print(f"Excluding {len(excluded_cards)} cards: {list(excluded_cards)}")
     arkham_cards = get_arkham_cards()
-    
+
     if not arkham_cards:
         return jsonify({"error": "Unable to load card data"}), 500
-    
+
     draftmancer_data = convert_to_draftmancer_format(arkham_cards, selected_sets)
-    
+
     if "error" in draftmancer_data:
         return jsonify({"error": draftmancer_data["error"]}), 500
-    
+
     # Generate cards for all three sheets with actual quantities and pack multipliers
-    investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities)
-    basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities)
-    player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities)
+    investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
+    basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
+    player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
     
     # Generate complete Draftmancer file content
     file_content = generate_draftmancer_file_content(

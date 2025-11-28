@@ -14,9 +14,14 @@ export function generateDraftmancerSession(CubeFile, tabToOpen, metadata, gameMo
     const SessionID = "ArkhamTD_" + crypto.randomUUID();
     
     // Calculate max players based on sufficient cards in each category
-    const investigatorsPerPlayer = 3;
-    const weaknessesPerPlayer = 3;
-    const playerCardsPerPlayer = 45;
+    // Read actual values from the form inputs
+    const investigatorsPerPlayer = parseInt(document.getElementById('investigatorsPerPack')?.value || 3);
+    const weaknessesPerPlayer = parseInt(document.getElementById('basicWeaknessesPerPack')?.value || 3);
+    const playerCardsPerPack = parseInt(document.getElementById('playerCardsPerPack')?.value || 15);
+    const playerCardPacksPerPlayer = parseInt(document.getElementById('playerCardPacksPerPlayer')?.value || 3);
+    
+    // Calculate total player cards needed per player
+    const playerCardsPerPlayer = playerCardsPerPack * playerCardPacksPerPlayer;
     
     const maxPlayersByInvestigators = Math.floor(metadata.investigatorsCount / investigatorsPerPlayer);
     const maxPlayersByWeaknesses = Math.floor(metadata.basicWeaknessesCount / weaknessesPerPlayer);

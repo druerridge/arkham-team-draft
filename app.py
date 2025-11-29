@@ -75,6 +75,286 @@ def parse_excluded_cards(excluded_text):
     
     return excluded_cards
 
+def parse_cards_to_include(include_text):
+    """Parse the cards to include text and return a dict with card names, quantities, and types."""
+    if not include_text:
+        return {}
+    
+    cards_to_include = {}
+    try:
+        lines = include_text.strip().split('\n')
+        
+        # Get card database for type lookup
+        arkham_cards = get_arkham_cards()
+        card_name_to_data = {}
+        if arkham_cards:
+            for card in arkham_cards:
+                card_name = card.get('name', '').lower()
+                if card_name:
+                    # Prioritize main cards over bonded cards
+                    # If we already have this card name, only replace if the new one is NOT a bonded card
+                    # or if we don't have a main card yet
+                    existing = card_name_to_data.get(card_name)
+                    if existing is None:
+                        # First card with this name
+                        card_name_to_data[card_name] = card
+                    elif existing.get('bonded_to') and not card.get('bonded_to'):
+                        # Replace bonded card with main card
+                        card_name_to_data[card_name] = card
+                    elif not existing.get('bonded_to') and not card.get('bonded_to'):
+                        # Both are main cards, prefer the one with deck requirements (for investigators)
+                        if card.get('type_code') == 'investigator' and card.get('deck_requirements', {}).get('card'):
+                            card_name_to_data[card_name] = card
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Parse format like "1 Knife" or "2 Emergency Cache"
+            parts = line.split(' ', 1)
+            if len(parts) >= 2:
+                try:
+                    quantity = int(parts[0])
+                    card_name = parts[1].strip()
+                    if card_name:
+                        # Look up card type
+                        card_data = card_name_to_data.get(card_name.lower())
+                        card_type = 'player'  # default
+                        
+                        if card_data:
+                            if card_data.get('type_code') == 'investigator':
+                                card_type = 'investigator'
+                            elif card_data.get('type_code') == 'treachery' and card_data.get('subtype_code') == 'basicweakness':
+                                card_type = 'basicweakness'
+                            else:
+                                card_type = 'player'
+                        
+                        cards_to_include[card_name.lower()] = {
+                            'name': card_name,
+                            'quantity': quantity,
+                            'type': card_type,
+                            'data': card_data
+                        }
+                except ValueError:
+                    # If first part isn't a number, skip this line
+                    continue
+    except Exception as e:
+        print(f"Error in parse_cards_to_include: {e}")
+        return {}
+    
+    return cards_to_include
+
+def add_cards_to_include_to_lists(cards_to_include, investigators_cards, basic_weaknesses_cards, player_cards, arkham_cards):
+    """Add cards to include to the appropriate card lists and update custom cards."""
+    if not cards_to_include:
+        return investigators_cards, basic_weaknesses_cards, player_cards, []
+    
+    custom_cards = []
+    
+    for card_name_lower, card_info in cards_to_include.items():
+        card_name = card_info['name']
+        quantity = card_info['quantity']
+        card_type = card_info['type']
+        card_data = card_info['data']
+        
+        # Create a custom card entry if we have the card data
+        if card_data:
+            # Use the exact same logic as convert_to_draftmancer_format
+            # Convert cost to string, handle special cases
+            cost = card_data.get('cost')
+            if cost == -2:
+                mana_cost_str = "X"
+            elif cost is not None:
+                mana_cost_str = str(cost)
+            else:
+                mana_cost_str = "0"
+            
+            # Create custom card entry using the exact same format as main processing
+            custom_card = {
+                "name": card_name,
+                "image": format_image_url(card_data.get('imagesrc', '')),
+                "colors": FACTION_COLOR_MAP.get(card_data.get('faction_code', 'neutral'), []),
+                "mana_cost": mana_cost_str,
+                "type": TYPE_CODE_MAP.get(card_data.get('type_code'), 'Instant'),
+                "set": f"AH{card_data.get('pack_code', '').upper()}",
+                "collector_number": str(card_data.get('code', '001')),
+                "rating": 0
+            }
+            
+            # Add layout field for investigator cards
+            if card_data.get('type_code') == 'investigator':
+                custom_card["layout"] = "split_left"
+            
+            # Add related_cards and draft_effects (same logic as main processing)
+            related_cards = []
+            draft_effect_cards = []
+            related_cards_to_add = []  # Cards that need custom entries too
+            
+            # Add deck_requirements related cards (only for investigators)
+            if card_data.get('type_code') == 'investigator':
+                deck_requirements = card_data.get('deck_requirements', {})
+                if 'card' in deck_requirements:
+                    card_req_data = deck_requirements['card']
+                    if isinstance(card_req_data, dict):
+                        # Get card codes from the keys of the card dictionary
+                        related_card_codes = list(card_req_data.keys())
+                        # Find the names of these cards
+                        for code in related_card_codes:
+                            related_card = next((c for c in arkham_cards if c.get('code') == code), None)
+                            if related_card:
+                                related_card_name = related_card.get('name', '')
+                                related_cards.append(related_card_name)
+                                # Add to draft effects so they're added to drafter's pool
+                                draft_effect_cards.append(related_card_name)
+                                # Add to list of cards that need custom entries
+                                related_cards_to_add.append(related_card)
+            
+            # Add bonded cards to related_cards (for any card type that has them)
+            bonded_cards = card_data.get('bonded_cards', [])
+            if bonded_cards:
+                for bonded_card_info in bonded_cards:
+                    bonded_code = bonded_card_info.get('code')
+                    if bonded_code:
+                        bonded_card = next((c for c in arkham_cards if c.get('code') == bonded_code), None)
+                        if bonded_card:
+                            bonded_name = bonded_card.get('name', '')
+                            related_cards.append(bonded_name)
+                            # Add to draft effects so they're added to drafter's pool
+                            draft_effect_cards.append(bonded_name)
+                            # Add to list of cards that need custom entries
+                            related_cards_to_add.append(bonded_card)
+            
+            # Add related_cards if we have any
+            if related_cards:
+                custom_card["related_cards"] = related_cards
+            
+            # Add draft effects
+            draft_effects = []
+            
+            # Add FaceUp for investigators and basic weaknesses
+            if card_data.get('type_code') == 'investigator' or (card_data.get('type_code') == 'treachery' and card_data.get('subtype_code') == 'basicweakness'):
+                draft_effects.append("FaceUp")
+                
+            # Add AddCards effect if we have cards to add
+            if draft_effect_cards:
+                draft_effects.append({
+                    "type": "AddCards",
+                    "cards": draft_effect_cards
+                })
+                
+            # Add draft_effects if we have any
+            if draft_effects:
+                custom_card["draft_effects"] = draft_effects
+            
+            # Handle back image (same logic as main processing)
+            if card_data.get('backimagesrc'):
+                back_card_data = {
+                    "name": card_name + " - back",
+                    "image": format_image_url(card_data.get('backimagesrc', '')),
+                    "type": TYPE_CODE_MAP.get(card_data.get('type_code'), 'Instant')
+                }
+                # Add layout field for investigator back cards
+                if card_data.get('type_code') == 'investigator':
+                    back_card_data["layout"] = "split_left"
+                custom_card["back"] = back_card_data
+            
+            custom_cards.append(custom_card)
+            
+            # Create custom card entries for all related cards too
+            for related_card_data in related_cards_to_add:
+                # Convert cost to string for related card
+                related_cost = related_card_data.get('cost')
+                if related_cost == -2:
+                    related_mana_cost_str = "X"
+                elif related_cost is not None:
+                    related_mana_cost_str = str(related_cost)
+                else:
+                    related_mana_cost_str = "0"
+                
+                # Create custom card entry for related card
+                related_custom_card = {
+                    "name": related_card_data.get('name', ''),
+                    "image": format_image_url(related_card_data.get('imagesrc', '')),
+                    "colors": FACTION_COLOR_MAP.get(related_card_data.get('faction_code', 'neutral'), []),
+                    "mana_cost": related_mana_cost_str,
+                    "type": TYPE_CODE_MAP.get(related_card_data.get('type_code'), 'Instant'),
+                    "set": f"AH{related_card_data.get('pack_code', '').upper()}",
+                    "collector_number": str(related_card_data.get('code', '001')),
+                    "rating": 0
+                }
+                
+                # Add layout field for investigator cards
+                if related_card_data.get('type_code') == 'investigator':
+                    related_custom_card["layout"] = "split_left"
+                
+                # Add draft effects for related cards
+                related_draft_effects = []
+                
+                # Add FaceUp for investigators and basic weaknesses
+                if related_card_data.get('type_code') == 'investigator' or (related_card_data.get('type_code') == 'treachery' and related_card_data.get('subtype_code') == 'basicweakness'):
+                    related_draft_effects.append("FaceUp")
+                    
+                # Add draft_effects if we have any
+                if related_draft_effects:
+                    related_custom_card["draft_effects"] = related_draft_effects
+                
+                # Handle back image for related cards
+                if related_card_data.get('backimagesrc'):
+                    related_back_card_data = {
+                        "name": related_card_data.get('name', '') + " - back",
+                        "image": format_image_url(related_card_data.get('backimagesrc', '')),
+                        "type": TYPE_CODE_MAP.get(related_card_data.get('type_code'), 'Instant')
+                    }
+                    # Add layout field for investigator back cards
+                    if related_card_data.get('type_code') == 'investigator':
+                        related_back_card_data["layout"] = "split_left"
+                    related_custom_card["back"] = related_back_card_data
+                
+                custom_cards.append(related_custom_card)
+        
+        # Add to appropriate list based on type
+        if card_type == 'investigator':
+            # Add to investigators list (no quantity prefix for investigators)
+            pack_code = card_data.get('pack_code', 'CUSTOM').upper() if card_data else 'CUSTOM'
+            collector_number = card_data.get('code', '001') if card_data else '001'
+            entry = f"{card_name} (AH{pack_code}) {collector_number}"
+            if entry not in investigators_cards:
+                investigators_cards.append(entry)
+        elif card_type == 'basicweakness':
+            # Add to basic weaknesses list (no quantity prefix for basic weaknesses)
+            pack_code = card_data.get('pack_code', 'CUSTOM').upper() if card_data else 'CUSTOM'
+            collector_number = card_data.get('code', '001') if card_data else '001'
+            entry = f"{card_name} (AH{pack_code}) {collector_number}"
+            if entry not in basic_weaknesses_cards:
+                basic_weaknesses_cards.append(entry)
+        else:
+            # Add to player cards list (with quantity prefix)
+            pack_code = card_data.get('pack_code', 'CUSTOM').upper() if card_data else 'CUSTOM'
+            collector_number = card_data.get('code', '001') if card_data else '001'
+            entry = f"{quantity} {card_name} (AH{pack_code}) {collector_number}"
+            # Check if card already exists and merge quantities
+            existing_index = None
+            for i, existing_entry in enumerate(player_cards):
+                if card_name in existing_entry and f"(AH{pack_code})" in existing_entry:
+                    existing_index = i
+                    break
+            
+            if existing_index is not None:
+                # Merge quantities
+                existing_parts = player_cards[existing_index].split(' ', 1)
+                try:
+                    existing_quantity = int(existing_parts[0])
+                    new_quantity = existing_quantity + quantity
+                    player_cards[existing_index] = f"{new_quantity} {existing_parts[1]}"
+                except (ValueError, IndexError):
+                    # If parsing fails, just add as new entry
+                    player_cards.append(entry)
+            else:
+                player_cards.append(entry)
+    
+    return investigators_cards, basic_weaknesses_cards, player_cards, custom_cards
+
 def is_cache_valid(cache_file):
     """Check if the cache file exists and is still valid."""
     if not os.path.exists(cache_file):
@@ -917,6 +1197,16 @@ def draft():
     excluded_cards_text = request.form.get('cardsToExclude', '').strip()
     excluded_cards = parse_excluded_cards(excluded_cards_text)
     
+    # Parse cards to include
+    cards_to_include_text = request.form.get('cardsToInclude', '').strip()
+    try:
+        cards_to_include = parse_cards_to_include(cards_to_include_text)
+        if cards_to_include:
+            print(f"Including {len(cards_to_include)} custom cards: {list(cards_to_include.keys())}")
+    except Exception as e:
+        print(f"Error parsing cards to include: {e}")
+        cards_to_include = {}
+    
     # Parse layout options
     investigators_per_pack = int(request.form.get('investigatorsPerPack', 3))
     basic_weaknesses_per_pack = int(request.form.get('basicWeaknessesPerPack', 3))
@@ -944,6 +1234,20 @@ def draft():
     investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
     basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
     player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
+    
+    # Add cards to include to appropriate lists and get custom cards
+    try:
+        investigators_cards, basic_weaknesses_cards, player_cards, custom_cards = add_cards_to_include_to_lists(
+            cards_to_include, investigators_cards, basic_weaknesses_cards, player_cards, arkham_cards
+        )
+    except Exception as e:
+        print(f"Error adding cards to include: {e}")
+        custom_cards = []
+    
+    # Add custom cards to draftmancer data
+    if custom_cards:
+        draftmancer_data["cards"].extend(custom_cards)
+        draftmancer_data["count"] += len(custom_cards)
     
     # Generate complete Draftmancer file content
     file_content = generate_draftmancer_file_content(
@@ -993,6 +1297,7 @@ def draft():
 def draft_now():
     from flask import jsonify
     
+    arkham_cards = get_arkham_cards()
     selected_sets = request.form.getlist('sets')
     
     if not selected_sets:
@@ -1008,6 +1313,16 @@ def draft_now():
     # Parse excluded cards
     excluded_cards_text = request.form.get('cardsToExclude', '').strip()
     excluded_cards = parse_excluded_cards(excluded_cards_text)
+    
+    # Parse cards to include
+    cards_to_include_text = request.form.get('cardsToInclude', '').strip()
+    try:
+        cards_to_include = parse_cards_to_include(cards_to_include_text)
+        if cards_to_include:
+            print(f"Including {len(cards_to_include)} custom cards for immediate draft: {list(cards_to_include.keys())}")
+    except Exception as e:
+        print(f"Error parsing cards to include: {e}")
+        cards_to_include = {}
     
     # Parse layout options
     investigators_per_pack = int(request.form.get('investigatorsPerPack', 3))
@@ -1034,6 +1349,20 @@ def draft_now():
     investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
     basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
     player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
+    
+    # Add cards to include to appropriate lists and get custom cards
+    try:
+        investigators_cards, basic_weaknesses_cards, player_cards, custom_cards = add_cards_to_include_to_lists(
+            cards_to_include, investigators_cards, basic_weaknesses_cards, player_cards, arkham_cards
+        )
+    except Exception as e:
+        print(f"Error adding cards to include for immediate draft: {e}")
+        custom_cards = []
+    
+    # Add custom cards to draftmancer data
+    if custom_cards:
+        draftmancer_data["cards"].extend(custom_cards)
+        draftmancer_data["count"] += len(custom_cards)
     
     # Generate complete Draftmancer file content
     file_content = generate_draftmancer_file_content(

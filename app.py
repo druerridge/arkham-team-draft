@@ -232,8 +232,8 @@ def add_cards_to_include_to_lists(cards_to_include, investigators_cards, basic_w
             # Add draft effects
             draft_effects = []
             
-            # Add FaceUp for investigators and basic weaknesses
-            if card_data.get('type_code') == 'investigator' or card_data.get('subtype_code') == 'basicweakness':
+            # Add FaceUp for investigators only
+            if card_data.get('type_code') == 'investigator':
                 draft_effects.append("FaceUp")
                 
             # Add AddCards effect if we have cards to add
@@ -291,8 +291,8 @@ def add_cards_to_include_to_lists(cards_to_include, investigators_cards, basic_w
                 # Add draft effects for related cards
                 related_draft_effects = []
                 
-                # Add FaceUp for investigators and basic weaknesses
-                if related_card_data.get('type_code') == 'investigator' or related_card_data.get('subtype_code') == 'basicweakness':
+                # Add FaceUp for investigators only
+                if related_card_data.get('type_code') == 'investigator':
                     related_draft_effects.append("FaceUp")
                     
                 # Add draft_effects if we have any
@@ -662,8 +662,8 @@ def convert_to_draftmancer_format(arkham_cards, selected_pack_names):
         # Add draft effects for automatic card pool additions
         draft_effects = []
         
-        # Add FaceUp for investigators and basic weaknesses
-        if card.get('type_code') == 'investigator' or (card.get('type_code') == 'treachery' and card.get('subtype_code') == 'basicweakness'):
+        # Add FaceUp for investigators only
+        if card.get('type_code') == 'investigator':
             draft_effects.append("FaceUp")
             
         # Add AddCards effect if we have cards to add

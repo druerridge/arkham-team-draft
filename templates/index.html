@@ -569,10 +569,15 @@
         
         function updateDraftButtonStates() {
             const checkedPacks = document.querySelectorAll('input[name="sets"]:checked');
+            const cardsToInclude = document.getElementById('cardsToInclude');
             const draftNowBtn = document.getElementById('draftNowBtn');
             const downloadLink = document.getElementById('downloadLink');
             
-            if (checkedPacks.length > 0) {
+            // Enable if packs are selected OR if cards to include has content
+            const hasSelectedPacks = checkedPacks.length > 0;
+            const hasCardsToInclude = cardsToInclude && cardsToInclude.value.trim().length > 0;
+            
+            if (hasSelectedPacks || hasCardsToInclude) {
                 draftNowBtn.disabled = false;
                 downloadLink.classList.remove('disabled');
             } else {
@@ -638,6 +643,13 @@
                 toggleQuantityInput(checkbox.value);
             });
             
+            // Add event listener for Cards to Include textarea
+            const cardsToInclude = document.getElementById('cardsToInclude');
+            if (cardsToInclude) {
+                cardsToInclude.addEventListener('input', updateDraftButtonStates);
+                cardsToInclude.addEventListener('change', updateDraftButtonStates);
+            }
+            
             // Initialize button states
             updateDraftButtonStates();
         });
@@ -648,10 +660,11 @@
             const form = document.querySelector('form');
             const formData = new FormData(form);
             
-            // Check if any sets are selected
+            // Check if any sets are selected or cards to include are provided
             const selectedSets = formData.getAll('sets');
-            if (selectedSets.length === 0) {
-                alert('Please select at least one pack to draft.');
+            const cardsToIncludeText = formData.get('cardsToInclude') || '';
+            if (selectedSets.length === 0 && cardsToIncludeText.trim().length === 0) {
+                alert('Please select at least one pack to draft or add cards to include.');
                 return;
             }
             

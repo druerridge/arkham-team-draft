@@ -1183,8 +1183,11 @@ def deck_exporter():
 def draft():
     selected_sets = request.form.getlist('sets')
     
-    if not selected_sets:
-        return render_template('draft_result.html', selected_sets=[], error="No sets selected")
+    # Check for cards to include first
+    cards_to_include_text = request.form.get('cardsToInclude', '').strip()
+    
+    if not selected_sets and not cards_to_include_text:
+        return render_template('draft_result.html', selected_sets=[], error="No sets selected and no cards to include specified")
 
     # Process pack quantities - get quantities for each selected pack
     pack_quantities = {}
@@ -1197,8 +1200,7 @@ def draft():
     excluded_cards_text = request.form.get('cardsToExclude', '').strip()
     excluded_cards = parse_excluded_cards(excluded_cards_text)
     
-    # Parse cards to include
-    cards_to_include_text = request.form.get('cardsToInclude', '').strip()
+    # Parse cards to include (moved earlier for validation)
     try:
         cards_to_include = parse_cards_to_include(cards_to_include_text)
         if cards_to_include:
@@ -1300,8 +1302,11 @@ def draft_now():
     arkham_cards = get_arkham_cards()
     selected_sets = request.form.getlist('sets')
     
-    if not selected_sets:
-        return jsonify({"error": "No sets selected"}), 400
+    # Check for cards to include first
+    cards_to_include_text = request.form.get('cardsToInclude', '').strip()
+    
+    if not selected_sets and not cards_to_include_text:
+        return jsonify({"error": "No sets selected and no cards to include specified"}), 400
 
     # Process pack quantities - get quantities for each selected pack
     pack_quantities = {}
@@ -1314,8 +1319,7 @@ def draft_now():
     excluded_cards_text = request.form.get('cardsToExclude', '').strip()
     excluded_cards = parse_excluded_cards(excluded_cards_text)
     
-    # Parse cards to include
-    cards_to_include_text = request.form.get('cardsToInclude', '').strip()
+    # Parse cards to include (moved earlier for validation)
     try:
         cards_to_include = parse_cards_to_include(cards_to_include_text)
         if cards_to_include:

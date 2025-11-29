@@ -88,13 +88,18 @@
         {% if error %}
             <h3 style="color: #ff6b6b;">Error:</h3>
             <p style="color: #ff6b6b;">{{ error }}</p>
-        {% elif selected_sets %}
+        {% elif selected_sets or card_count %}
+            {% if selected_sets %}
             <h3>Selected Sets (<span class="count">{{ selected_sets|length }}</span>):</h3>
             <ul class="set-list">
                 {% for set_name in selected_sets %}
                 <li>{{ set_name }}</li>
                 {% endfor %}
             </ul>
+            {% else %}
+            <h3>Custom Cards from "Cards to Include"</h3>
+            <p>Using cards specified in the "Cards to Include" section.</p>
+            {% endif %}
             
             {% if card_count %}
             <div style="margin-top: 20px; padding: 15px; background-color: #1a4a1a; border-radius: 5px;">
@@ -118,7 +123,7 @@
             </div>
             {% endif %}
         {% else %}
-            <p class="no-sets">No sets were selected for the draft.</p>
+            <p class="no-sets">No sets were selected and no cards were included for the draft.</p>
         {% endif %}
     </div>
     

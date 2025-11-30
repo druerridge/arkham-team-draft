@@ -252,7 +252,7 @@
             margin: 5px 0;
         }
         
-        .options-section {
+        .options-section, .instructions-section {
             background-color: #2a2a2a;
             border: 1px solid #444;
             border-radius: 8px;
@@ -260,7 +260,7 @@
             overflow: hidden;
         }
         
-        .options-header {
+        .options-header, .instructions-header {
             background-color: #3a3a3a;
             padding: 15px 20px;
             cursor: pointer;
@@ -271,32 +271,32 @@
             transition: background-color 0.3s ease;
         }
         
-        .options-header:hover {
+        .options-header:hover, .instructions-header:hover {
             background-color: #454545;
         }
         
-        .options-header h3 {
+        .options-header h3, .instructions-header h3 {
             margin: 0;
             color: #d4af37;
             font-size: 18px;
         }
         
-        .options-toggle {
+        .options-toggle, .instructions-toggle {
             font-size: 20px;
             color: #d4af37;
             transition: transform 0.3s ease;
         }
         
-        .options-toggle.expanded {
+        .options-toggle.expanded, .instructions-toggle.expanded {
             transform: rotate(180deg);
         }
         
-        .options-content {
+        .options-content, .instructions-content {
             display: none;
             padding: 20px;
         }
         
-        .options-content.expanded {
+        .options-content.expanded, .instructions-content.expanded {
             display: block;
         }
         
@@ -369,6 +369,43 @@
             Team-Based, Competitive Drafting for Arkham Horror: The Card Game
         </p>
     
+        <!-- Instructions Section -->
+        <div class="instructions-section">
+            <div class="instructions-header" onclick="toggleInstructions()">
+                <h3>Instructions</h3>
+                <span class="instructions-toggle" id="instructionsToggle">▼</span>
+            </div>
+            <div class="instructions-content" id="instructionsContent">
+                <ol>
+                    <li><strong>Select Products</strong> - you wish to be in the pool of cards you draft from and Press "Draft Now"<br>
+                        <em>(This will take you to draftmancer.com)</em></li>
+                    
+                    <li><strong>Choose Draft Type:</strong>
+                        <ul>
+                            <li><strong>2.a. Bot Draft (default)</strong> - Press "start" on draftmancer and begin drafting.</li>
+                            <li><strong>2.b. Human Draft</strong> -
+                                <ul>
+                                    <li><strong>2.b.i</strong> - decrease the number of bots to 0</li>
+                                    <li><strong>2.b.ii</strong> - share the URL with other drafters + wait for them to join</li>
+                                    <li><strong>2.b.iii</strong> - Press Start</li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </li>
+                    
+                    <li><strong>Draft</strong> - select 1 card from each pack until finished.</li>
+                    
+                    <li><strong>Deckbuild</strong> - choose a selection of cards that create a "legal" deck for your format, moving others to the sideboard</li>
+                    
+                    <li><strong>Export to ArkhamDb</strong> - choose "Export" > "Card Names" > return to ArkhamVsDraft's "Deck Exporter" and paste it in. Follow instructions for importing to ArkhamDb.com</li>
+                    
+                    <li><strong>Play</strong> - Import your deck wherever (paper/TTS/octgn) and have each team play through the same scenario concurrently.</li>
+                    
+                    <li><strong>Scoring</strong> - There are many ways to score and scenarios like Midwinter Gala and Carnevale of Horrors lend themselves to clear scoring. For most others, you can check the "Hunters of the Mythos" community competitions for most scenarios via the Mythos Buster's Discord (<a href="https://discord.com/channels/225349059689447425/1275516418925924448" target="_blank">https://discord.com/channels/225349059689447425/1275516418925924448</a>)</li>
+                </ol>
+            </div>
+        </div>
+
     <form method="POST" action="/draft">
         <!-- Options Section -->
         <div class="options-section">
@@ -525,6 +562,19 @@
         function toggleOptions() {
             const content = document.getElementById('optionsContent');
             const toggle = document.getElementById('optionsToggle');
+            
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                toggle.classList.remove('expanded');
+            } else {
+                content.classList.add('expanded');
+                toggle.classList.add('expanded');
+            }
+        }
+        
+        function toggleInstructions() {
+            const content = document.getElementById('instructionsContent');
+            const toggle = document.getElementById('instructionsToggle');
             
             if (content.classList.contains('expanded')) {
                 content.classList.remove('expanded');
@@ -790,7 +840,5 @@
     <!-- Socket.IO for Draftmancer connection -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="/static/draftmancer-connect.js"></script>
-    </div>
 </body>
-</html>
 </html>

@@ -201,6 +201,117 @@
             background-color: #444;
             cursor: not-allowed;
         }
+        
+        .draft-dropdown {
+            position: relative;
+            display: inline-block;
+            margin: 0 auto;
+        }
+        
+        .draft-main-button {
+            display: flex;
+            align-items: center;
+            width: 200px;
+            background-color: #006400;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            overflow: hidden;
+        }
+        
+        .draft-main-button:hover {
+            background-color: #008000;
+        }
+        
+        .draft-main-button:disabled {
+            background-color: #444;
+            cursor: not-allowed;
+        }
+        
+        .draft-button-text {
+            flex: 1;
+            padding: 15px 20px;
+            text-align: center;
+        }
+        
+        .draft-button-icon {
+            padding: 15px 15px;
+            border-left: 1px solid rgba(255,255,255,0.2);
+            font-size: 20px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .draft-button-icon:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+        
+        .draft-main-button:disabled .draft-button-icon {
+            cursor: not-allowed;
+        }
+        
+        .draft-main-button:disabled .draft-button-icon:hover {
+            background-color: transparent;
+        }
+        
+        .draft-dropdown-arrow {
+            font-size: 12px;
+            opacity: 0.7;
+        }
+        
+        .draft-dropdown-content {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            background-color: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            z-index: 1000;
+        }
+        
+        .draft-dropdown-content.show {
+            display: block;
+        }
+        
+        .draft-option {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            color: #e8d5b7;
+            text-decoration: none;
+            transition: background-color 0.3s;
+            gap: 10px;
+            font-size: 16px;
+        }
+        
+        .draft-option:hover {
+            background-color: #3a3a3a;
+            color: #e8d5b7;
+        }
+        
+        .draft-option:first-child {
+            border-radius: 5px 5px 0 0;
+        }
+        
+        .draft-option:last-child {
+            border-radius: 0 0 5px 5px;
+        }
+        
+        .draft-option-icon {
+            font-size: 18px;
+            width: 20px;
+        }
         .select-all {
             text-align: center;
             margin-bottom: 20px;
@@ -549,7 +660,25 @@
         </div>
         {% endif %}
         
-        <button type="button" class="draft-now-button" id="draftNowBtn" onclick="draftNow()" disabled>DRAFT NOW</button>
+        <div class="draft-dropdown" style="text-align: center; display: block;">
+            <div class="draft-main-button" id="draftMainBtn" style="margin: 0 auto;">
+                <div class="draft-button-text" onclick="draftNow()" id="draftTextBtn">DRAFT NOW</div>
+                <div class="draft-button-icon" onclick="toggleDraftDropdown(event)" id="draftIconBtn">
+                    <span id="draftModeIcon">🤖</span>
+                    <span class="draft-dropdown-arrow">▼</span>
+                </div>
+            </div>
+            <div class="draft-dropdown-content" id="draftDropdownContent">
+                <a href="#" class="draft-option" onclick="setDraftMode('bot'); return false;">
+                    <span class="draft-option-icon">🤖</span>
+                    <span>Draft with Bots</span>
+                </a>
+                <a href="#" class="draft-option" onclick="setDraftMode('human'); return false;">
+                    <span class="draft-option-icon">👥</span>
+                    <span>Draft with Humans</span>
+                </a>
+            </div>
+        </div>
         <a href="#" class="download-link disabled" id="downloadLink" onclick="event.preventDefault(); if (!this.classList.contains('disabled')) { downloadDraftFile(); } return false;">download draftmancer file</a>
     </form>
 
@@ -584,6 +713,37 @@
                 toggle.classList.add('expanded');
             }
         }
+        
+        let currentDraftMode = 'bot';
+        
+        function toggleDraftDropdown(event) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('draftDropdownContent');
+            const button = document.getElementById('draftMainBtn');
+            
+            if (button.classList.contains('disabled')) return;
+            
+            dropdown.classList.toggle('show');
+        }
+        
+        function setDraftMode(mode) {
+            currentDraftMode = mode;
+            const iconElement = document.getElementById('draftModeIcon');
+            const dropdown = document.getElementById('draftDropdownContent');
+            
+            iconElement.textContent = mode === 'bot' ? '🤖' : '👥';
+            dropdown.classList.remove('show');
+        }
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('draftDropdownContent');
+            const button = document.getElementById('draftMainBtn');
+            
+            if (!button.contains(event.target)) {
+                dropdown.classList.remove('show');
+            }
+        });
         
         function selectAll() {
             const checkboxes = document.querySelectorAll('input[type="checkbox"]');
@@ -623,7 +783,7 @@
         function updateDraftButtonStates() {
             const checkedPacks = document.querySelectorAll('input[name="sets"]:checked');
             const cardsToInclude = document.getElementById('cardsToInclude');
-            const draftNowBtn = document.getElementById('draftNowBtn');
+            const draftMainBtn = document.getElementById('draftMainBtn');
             const downloadLink = document.getElementById('downloadLink');
             
             // Enable if packs are selected OR if cards to include has content
@@ -631,10 +791,10 @@
             const hasCardsToInclude = cardsToInclude && cardsToInclude.value.trim().length > 0;
             
             if (hasSelectedPacks || hasCardsToInclude) {
-                draftNowBtn.disabled = false;
+                draftMainBtn.classList.remove('disabled');
                 downloadLink.classList.remove('disabled');
             } else {
-                draftNowBtn.disabled = true;
+                draftMainBtn.classList.add('disabled');
                 downloadLink.classList.add('disabled');
             }
         }
@@ -709,9 +869,23 @@
         
         // Draft Now functionality
         async function draftNow() {
-            const draftNowBtn = document.getElementById('draftNowBtn');
+            const draftMainBtn = document.getElementById('draftMainBtn');
+            const draftTextBtn = document.getElementById('draftTextBtn');
+            const dropdown = document.getElementById('draftDropdownContent');
             const form = document.querySelector('form');
             const formData = new FormData(form);
+            
+            // Close dropdown if open
+            dropdown.classList.remove('show');
+            
+            // Check if button is disabled
+            if (draftMainBtn.classList.contains('disabled')) {
+                alert('Please select at least one pack to draft or add cards to include.');
+                return;
+            }
+            
+            // Add current draft type to form data
+            formData.append('draftType', currentDraftMode);
             
             // Check if any sets are selected or cards to include are provided
             const selectedSets = formData.getAll('sets');
@@ -735,18 +909,20 @@
             }
             
             // Show loading content in the tab
+            const loadingText = currentDraftMode === 'human' ? 'Preparing human draft...' : 'Preparing bot draft...';
             draftTab.document.write(`
                 <html>
                     <head><title>Loading Arkham Draft...</title></head>
                     <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #1a1a1a; color: #e0e0e0;">
-                        <h2>Preparing your Arkham Horror draft...</h2>
+                        <h2>${loadingText}</h2>
                         <p>Please wait while we connect to Draftmancer.</p>
                     </body>
                 </html>
             `);
             
-            draftNowBtn.disabled = true;
-            draftNowBtn.textContent = 'CONNECTING...';
+            draftMainBtn.classList.add('disabled');
+            const originalText = draftTextBtn.textContent;
+            draftTextBtn.textContent = 'CONNECTING...';
             
             try {
                 const response = await fetch('/draft-now', {
@@ -762,10 +938,10 @@
                 
                 // Dynamically import and use the draftmancer connection module
                 const { generateDraftmancerSession } = await import('/static/draftmancer-connect.js');
-                generateDraftmancerSession(data.cubeFile, draftTab, data.metadata);
+                generateDraftmancerSession(data.cubeFile, draftTab, {...data.metadata, draftType: currentDraftMode});
                 
                 // Show success message without blocking
-                console.log(`Starting draft with ${data.metadata.investigatorsCount} investigators, ${data.metadata.basicWeaknessesCount} basic weaknesses, and ${data.metadata.playerCardsCount} player cards!`);
+                console.log(`Starting ${currentDraftMode} draft with ${data.metadata.investigatorsCount} investigators, ${data.metadata.basicWeaknessesCount} basic weaknesses, and ${data.metadata.playerCardsCount} player cards!`);
                 
             } catch (error) {
                 console.error('Draft Now error:', error);
@@ -775,8 +951,8 @@
                     draftTab.close();
                 }
             } finally {
-                draftNowBtn.disabled = false;
-                draftNowBtn.textContent = 'DRAFT NOW';
+                draftMainBtn.classList.remove('disabled');
+                draftTextBtn.textContent = originalText;
             }
         }
         

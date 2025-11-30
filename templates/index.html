@@ -493,6 +493,32 @@
             Team-Versus-Team, Competitive Drafting for Arkham Horror: The Card Game
         </p>
     
+        <!-- Draft Controls -->
+        <div class="draft-controls" style="margin-bottom: 20px;">
+            <div class="draft-dropdown" style="text-align: center; display: block; margin-bottom: 10px;">
+                <div class="draft-main-button" id="draftMainBtn" style="margin: 0 auto;">
+                    <div class="draft-button-text" onclick="draftNow()" id="draftTextBtn">DRAFT NOW</div>
+                    <div class="draft-button-icon" onclick="toggleDraftDropdown(event)" id="draftIconBtn">
+                        <span id="draftModeIcon">🤖</span>
+                        <span class="draft-dropdown-arrow">▼</span>
+                    </div>
+                </div>
+                <div class="draft-dropdown-content" id="draftDropdownContent">
+                    <a href="#" class="draft-option" onclick="setDraftMode('bot'); return false;">
+                        <span class="draft-option-icon">🤖</span>
+                        <span>Bot Draft Setup</span>
+                    </a>
+                    <a href="#" class="draft-option" onclick="setDraftMode('human'); return false;">
+                        <span class="draft-option-icon">👥</span>
+                        <span>Human Draft Setup</span>
+                    </a>
+                </div>
+            </div>
+            <div style="text-align: center;">
+                <a href="#" class="download-link disabled" id="downloadLink" onclick="event.preventDefault(); if (!this.classList.contains('disabled')) { downloadDraftFile(); } return false;">download draftmancer file</a>
+            </div>
+        </div>
+
         <!-- Instructions Section -->
         <div class="instructions-section">
             <div class="instructions-header" onclick="toggleInstructions()">
@@ -666,26 +692,6 @@
         </div>
         {% endif %}
         
-        <div class="draft-dropdown" style="text-align: center; display: block;">
-            <div class="draft-main-button" id="draftMainBtn" style="margin: 0 auto;">
-                <div class="draft-button-text" onclick="draftNow()" id="draftTextBtn">DRAFT NOW</div>
-                <div class="draft-button-icon" onclick="toggleDraftDropdown(event)" id="draftIconBtn">
-                    <span id="draftModeIcon">🤖</span>
-                    <span class="draft-dropdown-arrow">▼</span>
-                </div>
-            </div>
-            <div class="draft-dropdown-content" id="draftDropdownContent">
-                <a href="#" class="draft-option" onclick="setDraftMode('bot'); return false;">
-                    <span class="draft-option-icon">🤖</span>
-                    <span>Bot Draft Setup</span>
-                </a>
-                <a href="#" class="draft-option" onclick="setDraftMode('human'); return false;">
-                    <span class="draft-option-icon">👥</span>
-                    <span>Human Draft Setup</span>
-                </a>
-            </div>
-        </div>
-        <a href="#" class="download-link disabled" id="downloadLink" onclick="event.preventDefault(); if (!this.classList.contains('disabled')) { downloadDraftFile(); } return false;">download draftmancer file</a>
     </form>
 
     <div class="footer">

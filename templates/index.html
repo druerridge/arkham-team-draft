@@ -232,6 +232,27 @@
             cursor: not-allowed;
         }
         
+        .draft-main-button.disabled {
+            background-color: #444;
+            cursor: not-allowed;
+        }
+        
+        .draft-main-button.disabled:hover {
+            background-color: #444;
+        }
+        
+        .draft-main-button.disabled .draft-button-text {
+            cursor: not-allowed;
+        }
+        
+        .draft-main-button.disabled .draft-button-icon {
+            cursor: not-allowed;
+        }
+        
+        .draft-main-button.disabled .draft-button-icon:hover {
+            background-color: transparent;
+        }
+        
         .draft-button-text {
             flex: 1;
             padding: 15px 20px;
@@ -251,14 +272,6 @@
         
         .draft-button-icon:hover {
             background-color: rgba(255,255,255,0.1);
-        }
-        
-        .draft-main-button:disabled .draft-button-icon {
-            cursor: not-allowed;
-        }
-        
-        .draft-main-button:disabled .draft-button-icon:hover {
-            background-color: transparent;
         }
         
         .draft-dropdown-arrow {

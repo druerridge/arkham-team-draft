@@ -839,9 +839,9 @@ def generate_player_cards(selected_pack_codes, pack_quantities=None, excluded_ca
     return card_entries
 
 def generate_investigators_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None):
-    """Generate the Investigators section with unique cards by name, prioritizing revised core then most recent."""
-    # Dictionary to track best card by name: card_name -> (card_data, pack_data)
-    best_cards_by_name = {}
+    """Generate the Investigators section with unique cards by name+set, except Core/Revised Core are treated as same set."""
+    # Dictionary to track cards by (name, normalized_pack): card_name -> {normalized_pack -> (card_data, pack_data)}
+    cards_by_name_and_pack = {}
     
     # Get the main cards cache to verify which cards are player cards
     main_cards = get_arkham_cards()
@@ -851,6 +851,12 @@ def generate_investigators_cards(selected_pack_codes, pack_quantities=None, excl
     packs_data = load_cached_packs()
     pack_code_to_pack = {pack['code']: pack for pack in packs_data} if packs_data else {}
     pack_code_to_name = {pack['code']: pack['name'] for pack in packs_data} if packs_data else {}
+    
+    def normalize_pack_code(pack_code):
+        """Normalize pack codes so that 'core' and 'rcore' are treated as the same."""
+        if pack_code in ['core', 'rcore']:
+            return 'core'  # Treat both as 'core'
+        return pack_code
     
     # Fetch pack-specific card data for each selected pack
     for pack_code in selected_pack_codes:
@@ -878,42 +884,50 @@ def generate_investigators_cards(selected_pack_codes, pack_quantities=None, excl
             if excluded_cards and card_name.lower() in excluded_cards:
                 continue
             
-            # Check if this is a better version than what we have
-            if card_name not in best_cards_by_name:
-                best_cards_by_name[card_name] = (card, pack_data)
+            # Normalize the pack code (core/rcore treated as same)
+            normalized_pack = normalize_pack_code(pack_code)
+            
+            # Initialize nested dictionary if needed
+            if card_name not in cards_by_name_and_pack:
+                cards_by_name_and_pack[card_name] = {}
+            
+            # Check if this is a better version for this name+pack combination
+            if normalized_pack not in cards_by_name_and_pack[card_name]:
+                cards_by_name_and_pack[card_name][normalized_pack] = (card, pack_data)
             else:
-                current_card, current_pack = best_cards_by_name[card_name]
+                current_card, current_pack = cards_by_name_and_pack[card_name][normalized_pack]
                 
-                # Priority logic:
-                # 1. Revised core set (pack_code == 'rcore') wins
+                # Priority logic for same name+pack:
+                # 1. Revised core set (pack_code == 'rcore') wins over core
                 # 2. Otherwise, highest cycle_position wins
                 # 3. If cycle_position is tied, highest position wins
                 
-                if pack_code == 'rcore' and current_pack.get('code') != 'rcore':
-                    # New card is from revised core, current is not
-                    best_cards_by_name[card_name] = (card, pack_data)
-                elif current_pack.get('code') == 'rcore' and pack_code != 'rcore':
-                    # Current card is from revised core, new is not - keep current
+                if pack_code == 'rcore' and current_pack.get('code') == 'core':
+                    # New card is from revised core, current is from core - upgrade
+                    cards_by_name_and_pack[card_name][normalized_pack] = (card, pack_data)
+                elif current_pack.get('code') == 'rcore' and pack_code == 'core':
+                    # Current card is from revised core, new is from core - keep current
                     pass
                 else:
-                    # Neither or both are revised core, compare by cycle_position and position
+                    # Compare by cycle_position and position
                     current_cycle = current_pack.get('cycle_position', 0)
                     current_pos = current_pack.get('position', 0)
                     new_cycle = pack_data.get('cycle_position', 0)
                     new_pos = pack_data.get('position', 0)
                     
                     if (new_cycle > current_cycle) or (new_cycle == current_cycle and new_pos > current_pos):
-                        best_cards_by_name[card_name] = (card, pack_data)
+                        cards_by_name_and_pack[card_name][normalized_pack] = (card, pack_data)
     
-    # Generate investigators lines (no quantities, just unique cards)
+    # Generate investigators lines (no quantities, unique by name+pack)
     card_entries = []
-    for card_name, (card, pack_data) in best_cards_by_name.items():
-        collector_number = str(card.get('code', ''))
-        pack_code = card.get('pack_code', '')
-        card_entries.append(f"1 {card_name} (AH{pack_code.upper()}) {collector_number}")
+    for card_name, pack_dict in cards_by_name_and_pack.items():
+        for normalized_pack, (card, pack_data) in pack_dict.items():
+            collector_number = str(card.get('code', ''))
+            pack_code = card.get('pack_code', '')
+            card_entries.append(f"1 {card_name} (AH{pack_code.upper()}) {collector_number}")
     
-    # Sort the entries by card name
-    card_entries.sort(key=lambda x: x.split(' ', 1)[1].split(' (AH')[0])
+    # Sort the entries by card name, then by pack code
+    card_entries.sort(key=lambda x: (x.split(' ', 1)[1].split(' (AH')[0], x.split('(AH')[1].split(')')[0]))
     
     return card_entries
 

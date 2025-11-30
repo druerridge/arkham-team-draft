@@ -561,11 +561,37 @@ def convert_to_draftmancer_format(arkham_cards, selected_pack_names):
         if pack_code:
             selected_pack_codes.add(pack_code)
     
-    # Filter cards from selected packs and exclude cards with XP > 0
-    # This is for CustomCards section - include bonded cards but they won't appear in sheets
-    filtered_cards = []
+    # Collect all required cards from deck_requirements and bonded_cards
+    # These should be included even if they're from unselected packs
+    required_card_codes = set()
+    
     for card in arkham_cards:
         if card.get('pack_code') in selected_pack_codes:
+            # For investigators, collect deck requirements
+            if card.get('type_code') == 'investigator':
+                deck_requirements = card.get('deck_requirements', {})
+                if 'card' in deck_requirements:
+                    card_req_data = deck_requirements['card']
+                    if isinstance(card_req_data, dict):
+                        required_card_codes.update(card_req_data.keys())
+            
+            # For any card type, collect bonded cards
+            bonded_cards = card.get('bonded_cards', [])
+            if bonded_cards:
+                for bonded_card_info in bonded_cards:
+                    bonded_code = bonded_card_info.get('code')
+                    if bonded_code:
+                        required_card_codes.add(bonded_code)
+
+    # Filter cards from selected packs and exclude cards with XP > 0
+    # Also include required cards even if they're from unselected packs
+    filtered_cards = []
+    for card in arkham_cards:
+        card_code = card.get('code', '')
+        is_from_selected_pack = card.get('pack_code') in selected_pack_codes
+        is_required_card = card_code in required_card_codes
+        
+        if is_from_selected_pack or is_required_card:
             # Filter out cards with XP > 0
             xp = card.get('xp', 0)
             if xp is None or xp <= 0:
@@ -587,7 +613,11 @@ def convert_to_draftmancer_format(arkham_cards, selected_pack_names):
     # Create a lookup for linked back cards
     linked_back_lookup = {}
     for card in arkham_cards:
-        if card.get('pack_code') in selected_pack_codes:
+        card_code = card.get('code', '')
+        is_from_selected_pack = card.get('pack_code') in selected_pack_codes
+        is_required_card = card_code in required_card_codes
+        
+        if is_from_selected_pack or is_required_card:
             linked_to = card.get('linked_to_code')
             if linked_to and linked_to.endswith('b'):
                 # Find the linked back card

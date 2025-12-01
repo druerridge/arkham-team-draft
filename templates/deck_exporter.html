@@ -227,7 +227,10 @@ William Yorick
         </div>
     </div>
     
-    <button class="convert-button" onclick="convertDeck()">Convert to ArkhamDB Format</button>
+    <div class="button-group" style="display: flex; gap: 10px; justify-content: center; margin: 20px 0;">
+        <button class="convert-button" onclick="convertDeck()">Convert to ArkhamDB Format</button>
+        <button class="convert-button" onclick="generateCSV()" style="background-color: #8b4513;">Create CSV for arkham.build 'Sealed'</button>
+    </div>
 
     <div class="footer">
         <p>Please post bug reports and feature requests on <a href="https://github.com/druerridge/arkham-versus-draft" target="_blank">GitHub</a></p>
@@ -300,6 +303,130 @@ William Yorick
             }
             
             return investigator + '\n\n' + result.join('\n');
+        }
+        
+        async function generateCSV() {
+            const input = document.getElementById('draftmancerInput').value.trim();
+            
+            if (!input) {
+                alert('Please paste your Draftmancer deck export first.');
+                return;
+            }
+            
+            try {
+                // Parse the input to extract cards and quantities
+                const cardCounts = new Map();
+                const lines = input.split('\n');
+                
+                // Basic Magic lands to filter out
+                const basicLands = new Set(['forest', 'mountain', 'swamp', 'island', 'plains']);
+                
+                for (let line of lines) {
+                    line = line.trim();
+                    
+                    // Skip empty lines
+                    if (line === '') {
+                        continue;
+                    }
+                    
+                    // Parse the line format: "number cardname"
+                    const match = line.match(/^(\d+)\s+(.+)$/);
+                    if (!match) {
+                        continue; // Skip malformed lines
+                    }
+                    
+                    const count = parseInt(match[1]);
+                    let cardName = match[2].trim();
+                    
+                    // Skip basic Magic lands
+                    if (basicLands.has(cardName.toLowerCase())) {
+                        continue;
+                    }
+                    
+                    // Parse XP cost from parentheses, e.g. "Flashlight (3)" -> "Flashlight" with XP 3
+                    let xpCost = 0;
+                    const xpMatch = cardName.match(/^(.+?)\s*\((\d+)\)\s*$/);
+                    if (xpMatch) {
+                        cardName = xpMatch[1].trim();
+                        xpCost = parseInt(xpMatch[2]);
+                    }
+                    
+                    // Create a key that includes XP cost for lookup
+                    const cardKey = xpCost > 0 ? `${cardName} (${xpCost})` : cardName;
+                    
+                    // Add or update card count
+                    if (cardCounts.has(cardKey)) {
+                        cardCounts.set(cardKey, cardCounts.get(cardKey) + count);
+                    } else {
+                        cardCounts.set(cardKey, count);
+                    }
+                }
+                
+                // Fetch card data to get codes
+                const response = await fetch('/api/cards');
+                if (!response.ok) {
+                    throw new Error('Failed to load card data');
+                }
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                const nameToCode = data.cards;
+                
+                // Generate CSV content
+                const csvLines = ['code,quantity'];
+                const unmatchedCards = [];
+                
+                for (const [cardKey, quantity] of cardCounts.entries()) {
+                    let code = null;
+                    
+                    // For cards with XP cost specified, try to find exact match first
+                    if (cardKey.includes(' (')) {
+                        code = nameToCode[cardKey];
+                    }
+                    
+                    // If no exact match or no XP specified, use base name
+                    if (!code) {
+                        const baseName = cardKey.replace(/\s*\(\d+\)\s*$/, '');
+                        code = nameToCode[baseName];
+                    }
+                    
+                    if (code) {
+                        csvLines.push(`${code},${quantity}`);
+                    } else {
+                        unmatchedCards.push(cardKey);
+                    }
+                }
+                
+                // Show warning for unmatched cards
+                if (unmatchedCards.length > 0) {
+                    const message = `Warning: Could not find codes for ${unmatchedCards.length} cards:\n${unmatchedCards.slice(0, 10).join('\n')}${unmatchedCards.length > 10 ? '\n...' : ''}`;
+                    console.warn(message);
+                    if (confirm(message + '\n\nProceed with CSV generation?')) {
+                        // Continue with CSV generation
+                    } else {
+                        return;
+                    }
+                }
+                
+                // Create and download CSV file
+                const csvContent = csvLines.join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `ArkhamVsDraft_pool_${new Date().toISOString()}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+            } catch (error) {
+                alert('Error generating CSV: ' + error.message);
+                console.error('CSV generation error:', error);
+            }
         }
         
         function copyToClipboard() {

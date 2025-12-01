@@ -1250,6 +1250,43 @@ def deck_exporter():
 def sitemap():
     return app.send_static_file('sitemap.xml')
 
+@app.route('/api/cards')
+def api_cards():
+    """Return card name to code mapping for CSV generation."""
+    arkham_cards = get_arkham_cards()
+    if not arkham_cards:
+        return {"error": "Unable to load card data"}, 500
+    
+    # Create a name to code mapping, prioritizing 0 XP versions for base names
+    # and providing exact mappings for cards with XP costs
+    name_to_code = {}
+    name_to_cards = {}
+    
+    # Group cards by name
+    for card in arkham_cards:
+        if card.get('name') and card.get('code'):
+            name = card['name']
+            if name not in name_to_cards:
+                name_to_cards[name] = []
+            name_to_cards[name].append(card)
+    
+    # For each card name, create mappings
+    for name, cards in name_to_cards.items():
+        # Sort by XP cost (0 XP first, then ascending)
+        cards_sorted = sorted(cards, key=lambda c: c.get('xp', 0))
+        
+        # Use the first card (lowest XP) for the base name
+        name_to_code[name] = cards_sorted[0]['code']
+        
+        # Also create explicit mappings for cards with XP costs > 0
+        for card in cards:
+            xp = card.get('xp', 0)
+            if xp > 0:
+                xp_name = f"{name} ({xp})"
+                name_to_code[xp_name] = card['code']
+    
+    return {"cards": name_to_code}
+
 @app.route('/draft', methods=['POST'])
 def draft():
     selected_sets = request.form.getlist('sets')

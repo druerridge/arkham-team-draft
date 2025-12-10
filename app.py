@@ -844,7 +844,7 @@ def generate_player_cards(selected_pack_codes, pack_quantities=None, excluded_ca
     # Extract forbidden cards from taboo modifications
     if taboo_modifications:
         forbidden_cards = set(code for code, mods in taboo_modifications.items() 
-                             if any(mod.get('forbidden', False) for mod in mods))
+                             if any('Forbidden' in mod.get('text', '') for mod in mods))
     else:
         forbidden_cards = set()
     
@@ -1007,7 +1007,7 @@ def generate_investigators_cards(selected_pack_codes, pack_quantities=None, excl
     if taboo_modifications:
         for code, mods in taboo_modifications.items():
             for mod in mods:
-                if mod.get('forbidden', False):
+                if 'Forbidden' in mod.get('text', ''):
                     forbidden_cards.add(code)
                     break
     
@@ -1120,7 +1120,7 @@ def generate_basic_weaknesses_cards(selected_pack_codes, pack_quantities=None, e
     # Extract forbidden cards from taboo modifications
     if taboo_modifications:
         forbidden_cards = set(code for code, mods in taboo_modifications.items() 
-                             if any(mod.get('forbidden', False) for mod in mods))
+                             if any('Forbidden' in mod.get('text', '') for mod in mods))
     else:
         forbidden_cards = set()
     
@@ -1484,7 +1484,7 @@ def draft():
     
     if taboo_modifications:
         forbidden_count = len([code for code, mods in taboo_modifications.items() 
-                              if any(mod.get('forbidden', False) for mod in mods)])
+                              if any('Forbidden' in mod.get('text', '') for mod in mods)])
         print(f"Applying taboo list {taboo_list_id}: excluding {forbidden_count} forbidden cards")
     
     # Check for cards to include first
@@ -1608,7 +1608,7 @@ def draft_now():
     
     if taboo_modifications:
         forbidden_count = len([code for code, mods in taboo_modifications.items() 
-                              if any(mod.get('forbidden', False) for mod in mods)])
+                              if any('Forbidden' in mod.get('text', '') for mod in mods)])
         print(f"Applying taboo list {taboo_list_id}: excluding {forbidden_count} forbidden cards")
     
     # Check for cards to include first
@@ -1730,7 +1730,7 @@ def get_draft_content():
     
     if taboo_modifications:
         forbidden_count = len([code for code, mods in taboo_modifications.items() 
-                              if any(mod.get('forbidden', False) for mod in mods)])
+                              if any('Forbidden' in mod.get('text', '') for mod in mods)])
         print(f"Applying taboo list {taboo_list_id}: excluding {forbidden_count} forbidden cards")
     
     # Check for cards to include first

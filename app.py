@@ -824,7 +824,7 @@ def convert_to_draftmancer_format(arkham_cards, selected_pack_names):
         "filtered_cards": filtered_cards  # Include filtered cards for MainSlot generation
     }
 
-def generate_player_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None):
+def generate_player_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None, forbidden_cards=None):
     """Generate the PlayerCards section with actual card quantities from pack data, separated by set."""
     # Dictionary to track card quantities by (card_name, pack_code, collector_number) tuples
     card_set_quantities = {}
@@ -836,6 +836,12 @@ def generate_player_cards(selected_pack_codes, pack_quantities=None, excluded_ca
     # Create pack code to name mapping for quantity lookup
     packs_data = load_cached_packs()
     pack_code_to_name = {pack['code']: pack['name'] for pack in packs_data} if packs_data else {}
+    
+    # Initialize excluded and forbidden cards sets
+    if excluded_cards is None:
+        excluded_cards = set()
+    if forbidden_cards is None:
+        forbidden_cards = set()
     
     # Fetch pack-specific card data for each selected pack
     for pack_code in selected_pack_codes:
@@ -849,6 +855,10 @@ def generate_player_cards(selected_pack_codes, pack_quantities=None, excluded_ca
             # Only include cards that exist in the main cards cache (player cards)
             card_code = card.get('code', '')
             if card_code not in player_card_codes:
+                continue
+            
+            # Skip forbidden cards from taboo list
+            if card_code in forbidden_cards:
                 continue
                 
             # Skip cards that are bonded to other cards
@@ -896,7 +906,49 @@ def generate_player_cards(selected_pack_codes, pack_quantities=None, excluded_ca
     
     return card_entries
 
-def generate_investigators_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None):
+def get_forbidden_cards_from_taboo(taboo_id):
+    """Get a set of card codes that are forbidden in the specified taboo list."""
+    if not taboo_id:
+        return set()
+    
+    try:
+        taboo_id = int(taboo_id)
+    except ValueError:
+        return set()
+    
+    taboo_lists = get_arkham_taboos()
+    
+    # Find the taboo list with matching ID
+    selected_taboo = None
+    for taboo in taboo_lists:
+        if taboo.get('id') == taboo_id:
+            selected_taboo = taboo
+            break
+    
+    if not selected_taboo:
+        return set()
+    
+    forbidden_codes = set()
+    
+    try:
+        # Parse the cards JSON string
+        import json
+        cards_data = json.loads(selected_taboo.get('cards', '[]'))
+        
+        for card_modification in cards_data:
+            # Check if this card is forbidden
+            text = card_modification.get('text', '')
+            if 'Forbidden' in text:
+                code = card_modification.get('code')
+                if code:
+                    forbidden_codes.add(code)
+    except (json.JSONDecodeError, KeyError) as e:
+        print(f"Error parsing taboo list cards: {e}")
+        return set()
+    
+    return forbidden_codes
+
+def generate_investigators_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None, forbidden_cards=None):
     """Generate the Investigators section with unique cards by name+set, except Core/Revised Core are treated as same set."""
     # Dictionary to track cards by (name, normalized_pack): card_name -> {normalized_pack -> (card_data, pack_data)}
     cards_by_name_and_pack = {}
@@ -904,6 +956,12 @@ def generate_investigators_cards(selected_pack_codes, pack_quantities=None, excl
     # Get the main cards cache to verify which cards are player cards
     main_cards = get_arkham_cards()
     player_card_codes = set(card.get('code') for card in main_cards if card.get('code'))
+    
+    # Initialize excluded and forbidden cards sets
+    if excluded_cards is None:
+        excluded_cards = set()
+    if forbidden_cards is None:
+        forbidden_cards = set()
     
     # Get pack data for priority logic
     packs_data = load_cached_packs()
@@ -925,6 +983,10 @@ def generate_investigators_cards(selected_pack_codes, pack_quantities=None, excl
             # Only include cards that exist in the main cards cache (player cards)
             card_code = card.get('code', '')
             if card_code not in player_card_codes:
+                continue
+            
+            # Skip forbidden cards from taboo list
+            if card_code in forbidden_cards:
                 continue
                 
             # Skip cards that are bonded to other cards
@@ -989,7 +1051,7 @@ def generate_investigators_cards(selected_pack_codes, pack_quantities=None, excl
     
     return card_entries
 
-def generate_basic_weaknesses_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None):
+def generate_basic_weaknesses_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None, forbidden_cards=None):
     """Generate the BasicWeaknesses section with unique cards by name, prioritizing revised core then most recent."""
     # Dictionary to track best card by name: card_name -> (card_data, pack_data)
     best_cards_by_name = {}
@@ -1003,6 +1065,12 @@ def generate_basic_weaknesses_cards(selected_pack_codes, pack_quantities=None, e
     pack_code_to_pack = {pack['code']: pack for pack in packs_data} if packs_data else {}
     pack_code_to_name = {pack['code']: pack['name'] for pack in packs_data} if packs_data else {}
     
+    # Initialize excluded and forbidden cards sets
+    if excluded_cards is None:
+        excluded_cards = set()
+    if forbidden_cards is None:
+        forbidden_cards = set()
+    
     # Fetch pack-specific card data for each selected pack
     for pack_code in selected_pack_codes:
         pack_cards = get_pack_cards(pack_code)
@@ -1012,6 +1080,10 @@ def generate_basic_weaknesses_cards(selected_pack_codes, pack_quantities=None, e
             # Only include cards that exist in the main cards cache (player cards)
             card_code = card.get('code', '')
             if card_code not in player_card_codes:
+                continue
+            
+            # Skip forbidden cards from taboo list
+            if card_code in forbidden_cards:
                 continue
                 
             # Skip cards that are bonded to other cards
@@ -1353,6 +1425,13 @@ def api_cards():
 def draft():
     selected_sets = request.form.getlist('sets')
     
+    # Get selected taboo list
+    taboo_list_id = request.form.get('tabooList', '').strip()
+    forbidden_cards = get_forbidden_cards_from_taboo(taboo_list_id)
+    
+    if forbidden_cards:
+        print(f"Applying taboo list {taboo_list_id}: excluding {len(forbidden_cards)} forbidden cards")
+    
     # Check for cards to include first
     cards_to_include_text = request.form.get('cardsToInclude', '').strip()
     
@@ -1404,9 +1483,9 @@ def draft():
                                  error=draftmancer_data["error"])
 
         # Generate cards for all three sheets with actual quantities and pack multipliers
-        investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
-        basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
-        player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
+        investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
+        basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
+        player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
         
         # Add cards to include to appropriate lists and get custom cards
         try:
@@ -1468,6 +1547,13 @@ def draft_now():
     arkham_cards = get_arkham_cards()
     selected_sets = request.form.getlist('sets')
     
+    # Get selected taboo list
+    taboo_list_id = request.form.get('tabooList', '').strip()
+    forbidden_cards = get_forbidden_cards_from_taboo(taboo_list_id)
+    
+    if forbidden_cards:
+        print(f"Applying taboo list {taboo_list_id}: excluding {len(forbidden_cards)} forbidden cards")
+    
     # Check for cards to include first
     cards_to_include_text = request.form.get('cardsToInclude', '').strip()
     
@@ -1516,9 +1602,9 @@ def draft_now():
         return jsonify({"error": draftmancer_data["error"]}), 500
 
     # Generate cards for all three sheets with actual quantities and pack multipliers
-    investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
-    basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
-    player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
+    investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
+    basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
+    player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
     
     # Add cards to include to appropriate lists and get custom cards
     try:
@@ -1581,6 +1667,13 @@ def get_draft_content():
     
     selected_sets = request.form.getlist('sets')
     
+    # Get selected taboo list
+    taboo_list_id = request.form.get('tabooList', '').strip()
+    forbidden_cards = get_forbidden_cards_from_taboo(taboo_list_id)
+    
+    if forbidden_cards:
+        print(f"Applying taboo list {taboo_list_id}: excluding {len(forbidden_cards)} forbidden cards")
+    
     # Check for cards to include first
     cards_to_include_text = request.form.get('cardsToInclude', '').strip()
     
@@ -1633,9 +1726,9 @@ def get_draft_content():
             }
         
         # Generate cards for all three sheets
-        investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
-        basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
-        player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards)
+        investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
+        basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
+        player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
         
         # Add cards to include to appropriate lists and get custom cards
         try:

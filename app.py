@@ -824,7 +824,7 @@ def convert_to_draftmancer_format(arkham_cards, selected_pack_names):
         "filtered_cards": filtered_cards  # Include filtered cards for MainSlot generation
     }
 
-def generate_player_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None, forbidden_cards=None):
+def generate_player_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None, taboo_modifications=None):
     """Generate the PlayerCards section with actual card quantities from pack data, separated by set."""
     # Dictionary to track card quantities by (card_name, pack_code, collector_number) tuples
     card_set_quantities = {}
@@ -840,7 +840,12 @@ def generate_player_cards(selected_pack_codes, pack_quantities=None, excluded_ca
     # Initialize excluded and forbidden cards sets
     if excluded_cards is None:
         excluded_cards = set()
-    if forbidden_cards is None:
+    
+    # Extract forbidden cards from taboo modifications
+    if taboo_modifications:
+        forbidden_cards = set(code for code, mods in taboo_modifications.items() 
+                             if any(mod.get('forbidden', False) for mod in mods))
+    else:
         forbidden_cards = set()
     
     # Fetch pack-specific card data for each selected pack
@@ -872,8 +877,8 @@ def generate_player_cards(selected_pack_codes, pack_quantities=None, excluded_ca
             # Skip basic weakness cards
             if card.get('subtype_code') == 'basicweakness':
                 continue
-            # Skip cards with XP > 0
-            xp = card.get('xp', 0)
+            # Skip cards with XP > 0 (considering taboo modifications)
+            xp = apply_taboo_xp_modification(card, taboo_modifications)
             if xp is not None and xp > 0:
                 continue
             
@@ -906,15 +911,15 @@ def generate_player_cards(selected_pack_codes, pack_quantities=None, excluded_ca
     
     return card_entries
 
-def get_forbidden_cards_from_taboo(taboo_id):
-    """Get a set of card codes that are forbidden in the specified taboo list."""
+def get_taboo_modifications(taboo_id):
+    """Get a dictionary of card code to taboo modifications from the specified taboo list."""
     if not taboo_id:
-        return set()
+        return {}
     
     try:
         taboo_id = int(taboo_id)
     except ValueError:
-        return set()
+        return {}
     
     taboo_lists = get_arkham_taboos()
     
@@ -926,9 +931,9 @@ def get_forbidden_cards_from_taboo(taboo_id):
             break
     
     if not selected_taboo:
-        return set()
+        return {}
     
-    forbidden_codes = set()
+    taboo_modifications = {}
     
     try:
         # Parse the cards JSON string
@@ -936,19 +941,53 @@ def get_forbidden_cards_from_taboo(taboo_id):
         cards_data = json.loads(selected_taboo.get('cards', '[]'))
         
         for card_modification in cards_data:
-            # Check if this card is forbidden
-            text = card_modification.get('text', '')
-            if 'Forbidden' in text:
-                code = card_modification.get('code')
-                if code:
-                    forbidden_codes.add(code)
+            code = card_modification.get('code')
+            if code:
+                if code not in taboo_modifications:
+                    taboo_modifications[code] = []
+                taboo_modifications[code].append(card_modification)
     except (json.JSONDecodeError, KeyError) as e:
         print(f"Error parsing taboo list cards: {e}")
+        return {}
+    
+    return taboo_modifications
+
+def get_forbidden_cards_from_taboo(taboo_id):
+    """Get a set of card codes that are forbidden in the specified taboo list."""
+    if not taboo_id:
         return set()
+    
+    taboo_modifications = get_taboo_modifications(taboo_id)
+    forbidden_codes = set()
+    
+    for code, modification in taboo_modifications.items():
+        text = modification.get('text', '')
+        if 'Forbidden' in text:
+            forbidden_codes.add(code)
     
     return forbidden_codes
 
-def generate_investigators_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None, forbidden_cards=None):
+def apply_taboo_xp_modification(card, taboo_modifications):
+    """Apply XP modifications from taboo list to a card, returning the modified XP cost."""
+    if not taboo_modifications:
+        return card.get('xp', 0)
+        
+    card_code = card.get('code')
+    if not card_code or card_code not in taboo_modifications:
+        return card.get('xp', 0)
+    
+    modifications = taboo_modifications[card_code]
+    base_xp = card.get('xp', 0)
+    
+    # Apply all XP modifications for this card (sum them up)
+    total_xp_change = 0
+    for mod in modifications:
+        if 'xp' in mod:
+            total_xp_change += mod['xp']
+    
+    return base_xp + total_xp_change
+
+def generate_investigators_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None, taboo_modifications=None):
     """Generate the Investigators section with unique cards by name+set, except Core/Revised Core are treated as same set."""
     # Dictionary to track cards by (name, normalized_pack): card_name -> {normalized_pack -> (card_data, pack_data)}
     cards_by_name_and_pack = {}
@@ -957,11 +996,20 @@ def generate_investigators_cards(selected_pack_codes, pack_quantities=None, excl
     main_cards = get_arkham_cards()
     player_card_codes = set(card.get('code') for card in main_cards if card.get('code'))
     
-    # Initialize excluded and forbidden cards sets
+    # Initialize excluded cards and taboo modifications
     if excluded_cards is None:
         excluded_cards = set()
-    if forbidden_cards is None:
-        forbidden_cards = set()
+    if taboo_modifications is None:
+        taboo_modifications = {}
+    
+    # Get forbidden cards from taboo modifications
+    forbidden_cards = set()
+    if taboo_modifications:
+        for code, mods in taboo_modifications.items():
+            for mod in mods:
+                if mod.get('forbidden', False):
+                    forbidden_cards.add(code)
+                    break
     
     # Get pack data for priority logic
     packs_data = load_cached_packs()
@@ -1051,7 +1099,7 @@ def generate_investigators_cards(selected_pack_codes, pack_quantities=None, excl
     
     return card_entries
 
-def generate_basic_weaknesses_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None, forbidden_cards=None):
+def generate_basic_weaknesses_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None, taboo_modifications=None):
     """Generate the BasicWeaknesses section with unique cards by name, prioritizing revised core then most recent."""
     # Dictionary to track best card by name: card_name -> (card_data, pack_data)
     best_cards_by_name = {}
@@ -1068,7 +1116,12 @@ def generate_basic_weaknesses_cards(selected_pack_codes, pack_quantities=None, e
     # Initialize excluded and forbidden cards sets
     if excluded_cards is None:
         excluded_cards = set()
-    if forbidden_cards is None:
+    
+    # Extract forbidden cards from taboo modifications
+    if taboo_modifications:
+        forbidden_cards = set(code for code, mods in taboo_modifications.items() 
+                             if any(mod.get('forbidden', False) for mod in mods))
+    else:
         forbidden_cards = set()
     
     # Fetch pack-specific card data for each selected pack
@@ -1427,10 +1480,12 @@ def draft():
     
     # Get selected taboo list
     taboo_list_id = request.form.get('tabooList', '').strip()
-    forbidden_cards = get_forbidden_cards_from_taboo(taboo_list_id)
+    taboo_modifications = get_taboo_modifications(taboo_list_id)
     
-    if forbidden_cards:
-        print(f"Applying taboo list {taboo_list_id}: excluding {len(forbidden_cards)} forbidden cards")
+    if taboo_modifications:
+        forbidden_count = len([code for code, mods in taboo_modifications.items() 
+                              if any(mod.get('forbidden', False) for mod in mods)])
+        print(f"Applying taboo list {taboo_list_id}: excluding {forbidden_count} forbidden cards")
     
     # Check for cards to include first
     cards_to_include_text = request.form.get('cardsToInclude', '').strip()
@@ -1483,9 +1538,9 @@ def draft():
                                  error=draftmancer_data["error"])
 
         # Generate cards for all three sheets with actual quantities and pack multipliers
-        investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
-        basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
-        player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
+        investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
+        basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
+        player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
         
         # Add cards to include to appropriate lists and get custom cards
         try:
@@ -1549,10 +1604,12 @@ def draft_now():
     
     # Get selected taboo list
     taboo_list_id = request.form.get('tabooList', '').strip()
-    forbidden_cards = get_forbidden_cards_from_taboo(taboo_list_id)
+    taboo_modifications = get_taboo_modifications(taboo_list_id)
     
-    if forbidden_cards:
-        print(f"Applying taboo list {taboo_list_id}: excluding {len(forbidden_cards)} forbidden cards")
+    if taboo_modifications:
+        forbidden_count = len([code for code, mods in taboo_modifications.items() 
+                              if any(mod.get('forbidden', False) for mod in mods)])
+        print(f"Applying taboo list {taboo_list_id}: excluding {forbidden_count} forbidden cards")
     
     # Check for cards to include first
     cards_to_include_text = request.form.get('cardsToInclude', '').strip()
@@ -1602,9 +1659,9 @@ def draft_now():
         return jsonify({"error": draftmancer_data["error"]}), 500
 
     # Generate cards for all three sheets with actual quantities and pack multipliers
-    investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
-    basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
-    player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
+    investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
+    basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
+    player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
     
     # Add cards to include to appropriate lists and get custom cards
     try:
@@ -1669,10 +1726,12 @@ def get_draft_content():
     
     # Get selected taboo list
     taboo_list_id = request.form.get('tabooList', '').strip()
-    forbidden_cards = get_forbidden_cards_from_taboo(taboo_list_id)
+    taboo_modifications = get_taboo_modifications(taboo_list_id)
     
-    if forbidden_cards:
-        print(f"Applying taboo list {taboo_list_id}: excluding {len(forbidden_cards)} forbidden cards")
+    if taboo_modifications:
+        forbidden_count = len([code for code, mods in taboo_modifications.items() 
+                              if any(mod.get('forbidden', False) for mod in mods)])
+        print(f"Applying taboo list {taboo_list_id}: excluding {forbidden_count} forbidden cards")
     
     # Check for cards to include first
     cards_to_include_text = request.form.get('cardsToInclude', '').strip()
@@ -1726,9 +1785,9 @@ def get_draft_content():
             }
         
         # Generate cards for all three sheets
-        investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
-        basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
-        player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, forbidden_cards)
+        investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
+        basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
+        player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
         
         # Add cards to include to appropriate lists and get custom cards
         try:

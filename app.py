@@ -889,7 +889,7 @@ def convert_to_draftmancer_format(arkham_cards, selected_pack_names):
         "filtered_cards": filtered_cards  # Include filtered cards for MainSlot generation
     }
 
-def generate_player_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None, taboo_modifications=None):
+def generate_player_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None, taboo_modifications=None, unique_cards_only=False):
     """Generate the PlayerCards section with actual card quantities from pack data, separated by set."""
     # Dictionary to track card quantities by (card_name, pack_code, collector_number) tuples
     card_set_quantities = {}
@@ -968,8 +968,18 @@ def generate_player_cards(selected_pack_codes, pack_quantities=None, excluded_ca
     
     # Generate player cards lines with actual quantities, separated by set
     card_entries = []
-    for (card_name, pack_code, collector_number), total_quantity in card_set_quantities.items():
-        card_entries.append(f"{total_quantity} {card_name} (AH{pack_code.upper()}) {collector_number}")
+    
+    if unique_cards_only:
+        # For unique cards only, track card names to ensure no duplicates
+        unique_card_names = set()
+        for (card_name, pack_code, collector_number), total_quantity in card_set_quantities.items():
+            if card_name not in unique_card_names:
+                unique_card_names.add(card_name)
+                card_entries.append(f"1 {card_name} (AH{pack_code.upper()}) {collector_number}")
+    else:
+        # Normal behavior: include all quantities
+        for (card_name, pack_code, collector_number), total_quantity in card_set_quantities.items():
+            card_entries.append(f"{total_quantity} {card_name} (AH{pack_code.upper()}) {collector_number}")
     
     # Sort the entries by card name (ignoring quantity and set)
     card_entries.sort(key=lambda x: x.split(' ', 1)[1].split(' (AH')[0])
@@ -1052,7 +1062,7 @@ def apply_taboo_xp_modification(card, taboo_modifications):
     
     return base_xp + total_xp_change
 
-def generate_investigators_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None, taboo_modifications=None):
+def generate_investigators_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None, taboo_modifications=None, unique_cards_only=False):
     """Generate the Investigators section with unique cards by name+set, except Core/Revised Core are treated as same set."""
     # Dictionary to track cards by (name, normalized_pack): card_name -> {normalized_pack -> (card_data, pack_data)}
     cards_by_name_and_pack = {}
@@ -1153,18 +1163,33 @@ def generate_investigators_cards(selected_pack_codes, pack_quantities=None, excl
     
     # Generate investigators lines (no quantities, unique by name+pack)
     card_entries = []
-    for card_name, pack_dict in cards_by_name_and_pack.items():
-        for normalized_pack, (card, pack_data) in pack_dict.items():
-            collector_number = str(card.get('code', ''))
-            pack_code = card.get('pack_code', '')
-            card_entries.append(f"1 {card_name} (AH{pack_code.upper()}) {collector_number}")
+    
+    if unique_cards_only:
+        # For unique cards only, track card names to ensure no duplicates across all packs
+        unique_card_names = set()
+        for card_name, pack_dict in cards_by_name_and_pack.items():
+            if card_name not in unique_card_names:
+                unique_card_names.add(card_name)
+                # Pick the first/best pack version for this card name
+                for normalized_pack, (card, pack_data) in pack_dict.items():
+                    collector_number = str(card.get('code', ''))
+                    pack_code = card.get('pack_code', '')
+                    card_entries.append(f"1 {card_name} (AH{pack_code.upper()}) {collector_number}")
+                    break  # Only take the first pack version for this card name
+    else:
+        # Normal behavior: include all pack versions
+        for card_name, pack_dict in cards_by_name_and_pack.items():
+            for normalized_pack, (card, pack_data) in pack_dict.items():
+                collector_number = str(card.get('code', ''))
+                pack_code = card.get('pack_code', '')
+                card_entries.append(f"1 {card_name} (AH{pack_code.upper()}) {collector_number}")
     
     # Sort the entries by card name, then by pack code
     card_entries.sort(key=lambda x: (x.split(' ', 1)[1].split(' (AH')[0], x.split('(AH')[1].split(')')[0]))
     
     return card_entries
 
-def generate_basic_weaknesses_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None, taboo_modifications=None):
+def generate_basic_weaknesses_cards(selected_pack_codes, pack_quantities=None, excluded_cards=None, taboo_modifications=None, unique_cards_only=False):
     """Generate the BasicWeaknesses section with unique cards by name, prioritizing revised core then most recent."""
     # Dictionary to track best card by name: card_name -> (card_data, pack_data)
     best_cards_by_name = {}
@@ -1247,6 +1272,7 @@ def generate_basic_weaknesses_cards(selected_pack_codes, pack_quantities=None, e
                         best_cards_by_name[card_name] = (card, pack_data)
     
     # Generate basic weaknesses lines (no quantities, just unique cards)
+    # Note: Basic weaknesses are already unique by name, so unique_cards_only doesn't change behavior
     card_entries = []
     for card_name, (card, pack_data) in best_cards_by_name.items():
         collector_number = str(card.get('code', ''))
@@ -1548,7 +1574,7 @@ def draft():
     
     # TODO: Implement unique cards logic when backend is ready
     if unique_cards_only:
-        print("Unique cards only setting enabled (not yet implemented)")
+        print("Unique cards only setting enabled - limiting each card to appear at most once")
     
     # Get all cards and convert to Draftmancer format
     print(f"Generating Draftmancer format for {len(selected_sets)} selected sets with quantities: {pack_quantities}")
@@ -1569,9 +1595,9 @@ def draft():
                                  error=draftmancer_data["error"])
 
         # Generate cards for all three sheets with actual quantities and pack multipliers
-        investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
-        basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
-        player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
+        investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications, unique_cards_only)
+        basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications, unique_cards_only)
+        player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications, unique_cards_only)
         
         # Add cards to include to appropriate lists and get custom cards
         try:
@@ -1673,6 +1699,10 @@ def draft_now():
     basic_weaknesses_per_pack = int(request.form.get('basicWeaknessesPerPack', 3))
     player_cards_per_pack = int(request.form.get('playerCardsPerPack', 15))
     player_card_packs_per_player = int(request.form.get('playerCardPacksPerPlayer', 3))
+    unique_cards_only = request.form.get('uniqueCardsOnly') == 'on'
+    
+    if unique_cards_only:
+        print("Unique cards only setting enabled for immediate draft - limiting each card to appear at most once")
     
     # Get all cards and convert to Draftmancer format
     print(f"Generating Draftmancer format for immediate draft with {len(selected_sets)} selected sets and quantities: {pack_quantities}")
@@ -1690,9 +1720,9 @@ def draft_now():
         return jsonify({"error": draftmancer_data["error"]}), 500
 
     # Generate cards for all three sheets with actual quantities and pack multipliers
-    investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
-    basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
-    player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
+    investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications, unique_cards_only)
+    basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications, unique_cards_only)
+    player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications, unique_cards_only)
     
     # Add cards to include to appropriate lists and get custom cards
     try:
@@ -1793,6 +1823,10 @@ def get_draft_content():
     investigators_per_pack = int(request.form.get('investigatorsPerPack', 3))
     basic_weaknesses_per_pack = int(request.form.get('basicWeaknessesPerPack', 3))
     player_cards_per_pack = int(request.form.get('playerCardsPerPack', 15))
+    unique_cards_only = request.form.get('uniqueCardsOnly') == 'on'
+    
+    if unique_cards_only:
+        print("Unique cards only setting enabled for draft content - limiting each card to appear at most once")
     
     try:
         arkham_cards = get_arkham_cards()
@@ -1816,9 +1850,9 @@ def get_draft_content():
             }
         
         # Generate cards for all three sheets
-        investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
-        basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
-        player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications)
+        investigators_cards = generate_investigators_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications, unique_cards_only)
+        basic_weaknesses_cards = generate_basic_weaknesses_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications, unique_cards_only)
+        player_cards = generate_player_cards(draftmancer_data["selected_pack_codes"], pack_quantities, excluded_cards, taboo_modifications, unique_cards_only)
         
         # Add cards to include to appropriate lists and get custom cards
         try:

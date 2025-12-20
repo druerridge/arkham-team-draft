@@ -1336,10 +1336,8 @@ card_code,name,faction_code,xp,main_decks_including_once,main_deck_occurances,si
 83058,Unknown,Unknown,0,1,1,1,1
 86052,Unknown,Unknown,0,1,1,1,1
 01582,Aquinnah (1),survivor,1,0,0,2,2
-11017,George Barnaby,survivor,0,0,0,2,2
 08043,Archive of Conduits (4),seeker,4,0,0,2,2
 11105,Name Your Price (2),neutral,2,1,1,1,1
-60301,Winifred Habbamock,rogue,0,0,0,2,2
 11048,Dial of Ancients (4),seeker,4,1,1,1,1
 11124,Dimensional Vortex (5),neutral,5,1,1,1,1
 08615,Unknown,Unknown,0,2,2,0,0
@@ -1356,13 +1354,10 @@ card_code,name,faction_code,xp,main_decks_including_once,main_deck_occurances,si
 11122,Sacred Oath (5),neutral,5,1,1,1,1
 11123,Sacred Oath (5),neutral,5,1,1,1,1
 11047,Dial of Ancients (4),seeker,4,1,1,0,0
-08001,Daniela Reyes,guardian,0,0,0,1,1
 06059,Unknown,Unknown,0,0,0,1,1
 83056,Unknown,Unknown,0,1,1,0,0
 11760a,Unknown,Unknown,0,1,1,0,0
-98010,Carolyn Fern,guardian,0,0,0,1,1
 08646,Unknown,Unknown,0,1,1,0,0
-60101,Nathaniel Cho,guardian,0,0,0,1,1
 11063,"""You've had worse..."" (4)",rogue,4,0,0,1,1
 09764,Unknown,Unknown,0,1,1,0,0
 88043,Unknown,Unknown,0,1,1,0,0
@@ -1375,7 +1370,6 @@ card_code,name,faction_code,xp,main_decks_including_once,main_deck_occurances,si
 08734,Unknown,Unknown,0,1,1,0,0
 08736,Unknown,Unknown,0,1,1,0,0
 08737,Unknown,Unknown,0,1,1,0,0
-06005,Patrice Hathaway,survivor,0,0,0,1,1
 01568,Mind Wipe (1),mystic,1,1,1,0,0
 08617,Unknown,Unknown,0,1,1,0,0
 85032,Unknown,Unknown,0,1,1,0,0

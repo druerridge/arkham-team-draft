@@ -250,13 +250,15 @@ def generate_card_popularity_csv(decklists, arkham_cards, output_path="card_popu
                 reverse=True
             )
             
-            # Filter out weakness cards and investigator-restricted cards before writing
+            # Filter out weakness cards, investigator-restricted cards, and investigator cards before writing
             filtered_cards = []
             weakness_count = 0
             investigator_restricted_count = 0
+            investigator_count = 0
             for card_code, stats in sorted_cards:
                 card_info = arkham_cards.get(card_code, {})
                 subtype_code = card_info.get('subtype_code', '')
+                type_code = card_info.get('type_code', '')
                 restrictions = card_info.get('restrictions', {})
                 
                 should_filter = False
@@ -271,10 +273,15 @@ def generate_card_popularity_csv(decklists, arkham_cards, output_path="card_popu
                     investigator_restricted_count += 1
                     should_filter = True
                 
+                # Filter investigator cards
+                elif type_code == 'investigator':
+                    investigator_count += 1
+                    should_filter = True
+                
                 if not should_filter:
                     filtered_cards.append((card_code, stats))
             
-            print(f"Filtered out {weakness_count} weakness cards and {investigator_restricted_count} investigator-restricted cards")
+            print(f"Filtered out {weakness_count} weakness cards, {investigator_restricted_count} investigator-restricted cards, and {investigator_count} investigator cards")
             
             for card_code, stats in filtered_cards:
                 # Get card info from arkham_cards_cache
@@ -298,7 +305,7 @@ def generate_card_popularity_csv(decklists, arkham_cards, output_path="card_popu
                     'side_deck_occurances': stats['side_deck_occurances']
                 })
         
-        print(f"Generated card popularity CSV with {len(filtered_cards)} cards (filtered out {weakness_count} weakness cards and {investigator_restricted_count} investigator-restricted cards)")
+        print(f"Generated card popularity CSV with {len(filtered_cards)} cards (filtered out {weakness_count} weakness cards, {investigator_restricted_count} investigator-restricted cards, and {investigator_count} investigator cards)")
         print(f"Processed {processed_decks} decklists, skipped {skipped_decks} due to errors")
         print(f"Output saved to: {output_path}")
         
